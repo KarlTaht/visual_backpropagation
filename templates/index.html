@@ -85,6 +85,29 @@
             background: #f7fafc;
             border-radius: 8px;
             border-left: 4px solid #667eea;
+            position: relative;
+        }
+
+        .info-item[title] {
+            cursor: help;
+        }
+
+        .info-item[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2d3748;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            white-space: normal;
+            max-width: 250px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            margin-bottom: 8px;
         }
 
         .info-label {
@@ -504,12 +527,69 @@
                         </div>
                         <div id="current-lr-display" style="font-size: 0.85em; color: #9ca3af; margin-top: 3px;"></div>
                     </div>
+
+                    <!-- Batch Size Control -->
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 0.9em;">Batch Size:</label>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <input type="number" id="batch-size-input" min="1" max="1000"
+                                   style="flex: 1; padding: 8px; background: #1a1a1a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px;">
+                            <button onclick="updateBatchSize()" style="padding: 8px 16px;">Update</button>
+                        </div>
+                        <div id="current-batch-size-display" style="font-size: 0.85em; color: #9ca3af; margin-top: 3px;"></div>
+                    </div>
+
+                    <!-- Loss Type Control -->
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 0.9em;">Loss Function:</label>
+                        <div style="display: flex; gap: 15px; align-items: center; padding: 8px 0;">
+                            <label style="color: #e0e0e0; cursor: pointer;">
+                                <input type="radio" name="loss-type" value="mse" onchange="updateLossType('mse')" style="margin-right: 5px;">
+                                MSE
+                            </label>
+                            <label style="color: #e0e0e0; cursor: pointer;">
+                                <input type="radio" name="loss-type" value="cross_entropy" onchange="updateLossType('cross_entropy')" style="margin-right: 5px;">
+                                Cross-Entropy
+                            </label>
+                        </div>
+                        <div id="current-loss-type-display" style="font-size: 0.85em; color: #9ca3af;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Training Run Management -->
+            <div style="margin-bottom: 20px; padding: 15px; background: #1e3a5f; border-radius: 8px; border-left: 4px solid #60a5fa;">
+                <h3 style="margin: 0 0 15px 0; color: #93c5fd; font-size: 1.1em;">Training Runs</h3>
+
+                <!-- Create New Run -->
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                    <input type="text" id="new-run-name" placeholder="Run name (optional)"
+                           style="flex: 1; padding: 8px; background: #1a1a1a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; max-width: 250px;">
+                    <button onclick="createRun()" style="padding: 8px 16px; background: #2563eb; border-color: #2563eb;">
+                        + New Run
+                    </button>
+                    <button onclick="loadRuns()" style="padding: 8px 12px; background: #4b5563; border-color: #4b5563;">
+                        Refresh
+                    </button>
+                </div>
+
+                <!-- Active Run Info -->
+                <div id="active-run-info" style="margin-bottom: 10px; padding: 10px; background: #0f172a; border-radius: 6px;">
+                    <span style="color: #9ca3af;">No active run</span>
+                </div>
+
+                <!-- Run List -->
+                <div id="run-list" style="max-height: 200px; overflow-y: auto;">
+                    <p style="color: #9ca3af;">Loading runs...</p>
                 </div>
             </div>
 
             <div id="training-stats">
                 <p>Loading training statistics...</p>
             </div>
+
+            <!-- Persistent chart container - won't be destroyed on stats refresh -->
+            <div id="loss-chart" style="width: 100%; height: 400px; margin-top: 20px;"></div>
 
             <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <button onclick="runEpoch()">Run Single Epoch</button>
@@ -554,8 +634,21 @@
         <div class="content-card">
             <h2>Network Visualization</h2>
 
+            <div style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+                <label style="font-weight: 600; color: #2d3748; margin-right: 15px;">Mode:</label>
+                <label style="color: #2d3748; cursor: pointer; margin-right: 15px;">
+                    <input type="radio" name="viz-mode" value="visualize" checked style="margin-right: 5px;">
+                    Visualize Only (no weight updates)
+                </label>
+                <label style="color: #2d3748; cursor: pointer;">
+                    <input type="radio" name="viz-mode" value="train" style="margin-right: 5px;">
+                    Train (update weights)
+                </label>
+            </div>
+
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
                 <button onclick="runSingleStep()">Run Single Step</button>
+                <button onclick="runBatch()">Run Batch</button>
                 <button onclick="runEpoch()">Run Full Epoch</button>
                 <button onclick="loadModelState()">Refresh Model State</button>
             </div>
@@ -619,14 +712,24 @@
             }
         }
 
+        function getVisualizationMode() {
+            const modeRadio = document.querySelector('input[name="viz-mode"]:checked');
+            return modeRadio ? modeRadio.value : 'visualize';
+        }
+
         async function runSingleStep() {
             try {
-                // Call the API to run a single training step
+                // Check if we should update weights based on mode
+                const mode = getVisualizationMode();
+                const updateWeights = (mode === 'train');
+
+                // Call the API to run a single forward/backward pass
                 const response = await fetch('/api/run_single', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({ update_weights: updateWeights })
                 });
 
                 const result = await response.json();
@@ -822,6 +925,104 @@
             }
         }
 
+        async function updateBatchSize() {
+            const input = document.getElementById('batch-size-input');
+            const newBatchSize = parseInt(input.value);
+
+            if (!newBatchSize || newBatchSize < 1) {
+                alert('Please enter a valid batch size (1 or more)');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/update_batch_size', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ batch_size: newBatchSize })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Batch size updated to ${newBatchSize}`);
+                alert(`Batch size updated to ${newBatchSize}`);
+
+                // Reload trainer config to update display
+                await loadTrainerConfig();
+
+            } catch (error) {
+                alert(`Failed to update batch size: ${error.message}`);
+            }
+        }
+
+        async function updateLossType(newLossType) {
+            try {
+                const response = await fetch('/api/update_loss_type', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ loss_type: newLossType })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Loss type updated to ${newLossType}`);
+
+                // Reload trainer config to update display
+                await loadTrainerConfig();
+
+            } catch (error) {
+                alert(`Failed to update loss type: ${error.message}`);
+            }
+        }
+
+        async function runBatch() {
+            try {
+                // Check if we should update weights based on mode
+                const mode = getVisualizationMode();
+                const updateWeights = (mode === 'train');
+
+                const response = await fetch('/api/train_batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ update_weights: updateWeights })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                const modeStr = updateWeights ? 'training' : 'visualization';
+                console.log(`Batch ${modeStr} completed - Loss: ${result.loss.toFixed(6)}`);
+
+                // Refresh everything
+                await Promise.all([
+                    loadModelState(),
+                    loadTrainingStats()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to run batch: ${error.message}`);
+            }
+        }
+
         async function loadTrainerConfig() {
             try {
                 const response = await fetch('/api/trainer_config');
@@ -837,8 +1038,293 @@
                 document.getElementById('current-lr-display').textContent =
                     `Current: ${config.learning_rate}`;
 
+                // Populate batch size input
+                document.getElementById('batch-size-input').value = config.batch_size;
+                document.getElementById('current-batch-size-display').textContent =
+                    `Current: ${config.batch_size}`;
+
+                // Set the correct radio button for loss type
+                const lossTypeRadios = document.querySelectorAll('input[name="loss-type"]');
+                lossTypeRadios.forEach(radio => {
+                    radio.checked = (radio.value === config.loss_type);
+                });
+                document.getElementById('current-loss-type-display').textContent =
+                    `Current: ${config.loss_type === 'mse' ? 'MSE' : 'Cross-Entropy'}`;
+
             } catch (error) {
                 console.error('Failed to load trainer config:', error);
+            }
+        }
+
+        // === Training Run Management ===
+
+        async function loadRuns() {
+            try {
+                const response = await fetch('/api/runs');
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Error loading runs:', data.error);
+                    return;
+                }
+
+                displayRuns(data.runs, data.active_run_id);
+            } catch (error) {
+                console.error('Failed to load runs:', error);
+            }
+        }
+
+        function displayRuns(runs, activeRunId) {
+            const runListDiv = document.getElementById('run-list');
+            const activeRunInfoDiv = document.getElementById('active-run-info');
+
+            if (runs.length === 0) {
+                runListDiv.innerHTML = '<p style="color: #9ca3af; margin: 0;">No runs created yet. Click "+ New Run" to start tracking.</p>';
+                activeRunInfoDiv.innerHTML = '<span style="color: #9ca3af;">No active run - training data not being saved</span>';
+                return;
+            }
+
+            // Display active run info
+            const activeRun = runs.find(r => r.run_id === activeRunId);
+            if (activeRun) {
+                const lossDisplay = activeRun.current_loss !== null ? activeRun.current_loss.toFixed(6) : 'N/A';
+                const bestLossDisplay = activeRun.best_loss !== null ? activeRun.best_loss.toFixed(6) : 'N/A';
+                activeRunInfoDiv.innerHTML = `
+                    <div style="color: #60a5fa; font-weight: 600; margin-bottom: 5px;">
+                        Active: ${activeRun.name}
+                    </div>
+                    <div style="color: #9ca3af; font-size: 0.9em;">
+                        Epoch: ${activeRun.current_epoch} |
+                        Loss: ${lossDisplay} |
+                        Best: ${bestLossDisplay} |
+                        LR: ${activeRun.config.learning_rate} |
+                        Batch: ${activeRun.config.batch_size}
+                    </div>
+                `;
+            } else {
+                activeRunInfoDiv.innerHTML = '<span style="color: #fbbf24;">No active run selected</span>';
+            }
+
+            // Display run list
+            let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+            runs.forEach(run => {
+                const isActive = run.run_id === activeRunId;
+                const lossDisplay = run.current_loss !== null ? run.current_loss.toFixed(6) : 'N/A';
+                const bestLossDisplay = run.best_loss !== null ? run.best_loss.toFixed(6) : 'N/A';
+                const bgColor = isActive ? '#1e40af' : '#374151';
+                const borderColor = isActive ? '#60a5fa' : '#4b5563';
+                const lossTypeDisplay = run.config.loss_type === 'mse' ? 'MSE' : 'CE';
+
+                html += `
+                    <div style="padding: 10px; background: ${bgColor}; border-radius: 6px; border: 1px solid ${borderColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="run-name-${run.run_id}" style="color: #e0e0e0; font-weight: 600;">${run.name}</span>
+                                <button onclick="showRenameInput('${run.run_id}', '${run.name.replace(/'/g, "\\'")}')"
+                                        style="padding: 2px 6px; font-size: 0.75em; background: #6b7280; border-color: #6b7280;">
+                                    Rename
+                                </button>
+                                ${isActive ? '<span style="color: #34d399; font-size: 0.8em;">(ACTIVE)</span>' : ''}
+                            </div>
+                            <span style="color: #9ca3af; font-size: 0.8em;">${run.run_id}</span>
+                        </div>
+                        <div id="rename-input-${run.run_id}" style="display: none; margin-bottom: 8px;">
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="rename-field-${run.run_id}"
+                                       style="flex: 1; padding: 4px 8px; background: #1a1a1a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; font-size: 0.85em;">
+                                <button onclick="renameRun('${run.run_id}')"
+                                        style="padding: 4px 8px; font-size: 0.85em; background: #059669; border-color: #059669;">Save</button>
+                                <button onclick="hideRenameInput('${run.run_id}')"
+                                        style="padding: 4px 8px; font-size: 0.85em; background: #6b7280; border-color: #6b7280;">Cancel</button>
+                            </div>
+                        </div>
+                        <div style="color: #9ca3af; font-size: 0.85em; margin-bottom: 4px;">
+                            Epochs: ${run.current_epoch} | Loss: ${lossDisplay} | Best: ${bestLossDisplay}
+                        </div>
+                        <div style="color: #60a5fa; font-size: 0.85em; margin-bottom: 8px;">
+                            LR: ${run.config.learning_rate} | Batch: ${run.config.batch_size} | Loss: ${lossTypeDisplay}
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            ${!isActive ? `<button onclick="activateRun('${run.run_id}')" style="padding: 4px 10px; font-size: 0.85em; background: #059669; border-color: #059669;">Activate</button>` : ''}
+                            <button onclick="resetRun('${run.run_id}')" style="padding: 4px 10px; font-size: 0.85em; background: #d97706; border-color: #d97706;">Reset</button>
+                            <button onclick="deleteRun('${run.run_id}')" style="padding: 4px 10px; font-size: 0.85em; background: #dc2626; border-color: #dc2626;">Delete</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            runListDiv.innerHTML = html;
+        }
+
+        function showRenameInput(runId, currentName) {
+            const inputContainer = document.getElementById(`rename-input-${runId}`);
+            const inputField = document.getElementById(`rename-field-${runId}`);
+            inputField.value = currentName;
+            inputContainer.style.display = 'block';
+            inputField.focus();
+            inputField.select();
+        }
+
+        function hideRenameInput(runId) {
+            const inputContainer = document.getElementById(`rename-input-${runId}`);
+            inputContainer.style.display = 'none';
+        }
+
+        async function renameRun(runId) {
+            const inputField = document.getElementById(`rename-field-${runId}`);
+            const newName = inputField.value.trim();
+
+            if (!newName) {
+                alert('Name cannot be empty');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/runs/${runId}/rename`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Renamed run to: ${result.run.name}`);
+
+                // Refresh runs to show updated name
+                await loadRuns();
+
+            } catch (error) {
+                alert(`Failed to rename run: ${error.message}`);
+            }
+        }
+
+        async function createRun() {
+            const nameInput = document.getElementById('new-run-name');
+            const name = nameInput.value.trim() || null;
+
+            try {
+                const response = await fetch('/api/runs/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: name })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Created run: ${result.run.name}`);
+                nameInput.value = '';
+
+                // Refresh runs and stats
+                await Promise.all([
+                    loadRuns(),
+                    loadTrainingStats(),
+                    loadTrainerConfig()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to create run: ${error.message}`);
+            }
+        }
+
+        async function activateRun(runId) {
+            try {
+                const response = await fetch(`/api/runs/${runId}/activate`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Activated run: ${result.run.name}`);
+
+                // Refresh everything
+                await Promise.all([
+                    loadRuns(),
+                    loadTrainingStats(),
+                    loadTrainerConfig(),
+                    loadModelState()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to activate run: ${error.message}`);
+            }
+        }
+
+        async function resetRun(runId) {
+            if (!confirm('Reset this run to its initial state? This will clear all training history and restore initial weights.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/runs/${runId}/reset`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Reset run: ${result.run.name}`);
+
+                // Refresh everything
+                await Promise.all([
+                    loadRuns(),
+                    loadTrainingStats(),
+                    loadModelState()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to reset run: ${error.message}`);
+            }
+        }
+
+        async function deleteRun(runId) {
+            if (!confirm('Delete this run permanently? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/runs/${runId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Deleted run: ${runId}`);
+
+                // Refresh runs
+                await loadRuns();
+
+            } catch (error) {
+                alert(`Failed to delete run: ${error.message}`);
             }
         }
 
@@ -943,7 +1429,7 @@
             }
         }
 
-        function displayTrainingStats(stats) {
+        async function displayTrainingStats(stats) {
             const currentLoss = stats.losses.length > 0 ?
                 stats.losses[stats.losses.length - 1].toFixed(6) :
                 'N/A';
@@ -952,21 +1438,21 @@
                 Math.min(...stats.losses).toFixed(6) :
                 'N/A';
 
-            // Calculate average epoch time
+            // Calculate average epoch time (convert to ms)
             const avgEpochTime = stats.epoch_times && stats.epoch_times.length > 0 ?
-                (stats.epoch_times.reduce((a, b) => a + b, 0) / stats.epoch_times.length).toFixed(2) :
+                (stats.epoch_times.reduce((a, b) => a + b, 0) / stats.epoch_times.length * 1000).toFixed(1) :
                 'N/A';
 
-            // Get last epoch time
+            // Get last epoch time (convert to ms)
             const lastEpochTime = stats.epoch_times && stats.epoch_times.length > 0 ?
-                stats.epoch_times[stats.epoch_times.length - 1].toFixed(2) :
+                (stats.epoch_times[stats.epoch_times.length - 1] * 1000).toFixed(1) :
                 'N/A';
 
             let html = `
                 <div class="training-grid">
                     <div class="stat-box">
                         <div class="stat-label">Current Epoch</div>
-                        <div class="stat-value">${stats.current_epoch} / ${stats.total_epochs}</div>
+                        <div class="stat-value">${stats.current_epoch}</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Current Loss</div>
@@ -990,46 +1476,155 @@
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Last Epoch Time</div>
-                        <div class="stat-value">${lastEpochTime}s</div>
+                        <div class="stat-value">${lastEpochTime}ms</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Avg Epoch Time</div>
-                        <div class="stat-value">${avgEpochTime}s</div>
+                        <div class="stat-value">${avgEpochTime}ms</div>
                     </div>
                 </div>
             `;
 
-            // Add Plotly chart container
-            html += '<div id="loss-chart" style="width: 100%; height: 400px; margin-top: 20px;"></div>';
-
-            // Add loss history
-            if (stats.losses.length > 0) {
-                html += '<div class="loss-history">';
-                html += '<div class="loss-history-title">Loss History (Last 20)</div>';
-
-                // Show last 20 losses in reverse order (most recent first)
-                const recentLosses = stats.losses.slice(-20).reverse();
-                for (let i = 0; i < recentLosses.length; i++) {
-                    const stepNum = stats.losses.length - i;
-                    html += `
-                        <div class="loss-item">
-                            <span class="loss-epoch">Step ${stepNum}:</span>
-                            <span class="loss-number">${recentLosses[i].toFixed(6)}</span>
-                        </div>
-                    `;
-                }
-
-                html += '</div>';
-            }
-
             document.getElementById('training-stats').innerHTML = html;
 
-            // Update the Plotly chart
-            updateLossChart(stats);
+            // Load multi-run chart (shows all runs + current session)
+            await loadMultiRunChart(stats);
         }
 
-        function updateLossChart(stats) {
+        async function loadMultiRunChart(currentStats = null) {
+            try {
+                const response = await fetch('/api/runs/losses');
+                const runLosses = await response.json();
+
+                if (runLosses.error) {
+                    console.error('Error loading run losses:', runLosses.error);
+                    // Fall back to current stats if available
+                    if (currentStats && currentStats.losses.length > 0) {
+                        updateSingleRunChart(currentStats);
+                    }
+                    return;
+                }
+
+                updateMultiRunChart(runLosses, currentStats);
+            } catch (error) {
+                console.error('Failed to load multi-run chart:', error);
+                // Fall back to current stats if available
+                if (currentStats && currentStats.losses.length > 0) {
+                    updateSingleRunChart(currentStats);
+                }
+            }
+        }
+
+        function updateMultiRunChart(runLosses, currentStats = null) {
+            const colors = [
+                'rgb(138, 43, 226)',  // Purple
+                'rgb(59, 130, 246)',  // Blue
+                'rgb(16, 185, 129)',  // Green
+                'rgb(245, 158, 11)',  // Orange
+                'rgb(239, 68, 68)',   // Red
+                'rgb(236, 72, 153)',  // Pink
+                'rgb(139, 92, 246)',  // Indigo
+                'rgb(6, 182, 212)',   // Cyan
+            ];
+
+            const traces = [];
+            let colorIndex = 0;
+
+            // Debug: log what we received
+            console.log('Run losses data:', runLosses);
+            console.log('Current stats:', currentStats);
+
+            for (const [runId, runData] of Object.entries(runLosses)) {
+                if (!runData || !runData.losses || runData.losses.length === 0) continue;
+
+                const steps = Array.from({length: runData.losses.length}, (_, i) => i + 1);
+                const color = colors[colorIndex % colors.length];
+
+                traces.push({
+                    x: steps,
+                    y: runData.losses,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: `${runData.name} (LR: ${runData.config.learning_rate})`,
+                    line: {
+                        color: color,
+                        width: 2
+                    },
+                    marker: {
+                        color: color,
+                        size: 4
+                    }
+                });
+
+                colorIndex++;
+            }
+
+            // If no runs exist but we have current session data, show that
+            if (traces.length === 0 && currentStats && currentStats.losses && currentStats.losses.length > 0) {
+                console.log('Falling back to session data');
+                updateSingleRunChart(currentStats);
+                return;
+            }
+
+            if (traces.length === 0) {
+                // No data to show at all
+                document.getElementById('loss-chart').innerHTML =
+                    '<div style="text-align: center; color: #9ca3af; padding: 50px;">No training data yet. Create a run and start training!</div>';
+                return;
+            }
+
+            const layout = {
+                title: {
+                    text: traces.length > 1 ? 'Loss Comparison Across Training Runs' : 'Loss Over Training Steps',
+                    font: {
+                        size: 16,
+                        color: '#e0e0e0'
+                    }
+                },
+                xaxis: {
+                    title: 'Training Step',
+                    gridcolor: '#444',
+                    color: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Loss',
+                    gridcolor: '#444',
+                    color: '#e0e0e0'
+                },
+                plot_bgcolor: '#2a2a2a',
+                paper_bgcolor: '#1a1a1a',
+                font: {
+                    color: '#e0e0e0'
+                },
+                margin: {
+                    l: 60,
+                    r: 30,
+                    t: 50,
+                    b: 50
+                },
+                hovermode: 'closest',
+                showlegend: traces.length > 1,
+                legend: {
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    font: {
+                        color: '#e0e0e0'
+                    }
+                }
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false
+            };
+
+            Plotly.react('loss-chart', traces, layout, config);
+        }
+
+        function updateSingleRunChart(stats) {
             if (stats.losses.length === 0) {
+                document.getElementById('loss-chart').innerHTML =
+                    '<div style="text-align: center; color: #9ca3af; padding: 50px;">No training data yet. Start training to see loss curve.</div>';
                 return;
             }
 
@@ -1042,7 +1637,7 @@
                 y: losses,
                 type: 'scatter',
                 mode: 'lines+markers',
-                name: 'Loss',
+                name: 'Current Session',
                 line: {
                     color: 'rgb(138, 43, 226)',  // Purple to match theme
                     width: 2
@@ -1314,15 +1909,15 @@
 
             const html = `
                 <div class="info-grid">
-                    <div class="info-item">
+                    <div class="info-item" title="Intermediate values saved during forward pass. These are needed to compute gradients during backpropagation.">
                         <div class="info-label">Activations Stored</div>
                         <div class="info-value">${Object.keys(activations).length}</div>
                     </div>
-                    <div class="info-item">
+                    <div class="info-item" title="Partial derivatives of the loss with respect to each weight matrix, computed during backward pass via chain rule.">
                         <div class="info-label">Gradients Computed</div>
                         <div class="info-value">${Object.keys(gradients).length}</div>
                     </div>
-                    <div class="info-item">
+                    <div class="info-item" title="Learnable parameter matrices including weights and biases for input, hidden, and output layers.">
                         <div class="info-label">Weight Matrices</div>
                         <div class="info-value">${Object.keys(weights).length}</div>
                     </div>
@@ -1347,8 +1942,10 @@
             const minMax = getGlobalMinMax(state);
             // Get separate min/max for output activations
             const outputMinMax = getOutputMinMax(state);
-            // Get separate min/max for gradients
+            // Get separate min/max for gradients (excluding output layer)
             const gradientMinMax = getGradientMinMax(state);
+            // Get separate min/max for output layer gradients only
+            const outputGradientMinMax = getOutputGradientMinMax(state);
 
             let html = '';
 
@@ -1396,8 +1993,8 @@
                     `hidden_${i+1}_pre`, `hidden_${i+1}`);
             }
 
-            // Use outputMinMax for the output layer activations
-            populateLayerCell('Output Layer', weights, activations, gradients, minMax, outputMinMax, gradientMinMax,
+            // Use outputMinMax for the output layer activations and outputGradientMinMax for its gradients
+            populateLayerCell('Output Layer', weights, activations, gradients, minMax, outputMinMax, outputGradientMinMax,
                 `hidden_${numHiddenLayers}`, 'output_weights', 'output_biases',
                 'output', 'output');
         }
@@ -1538,11 +2135,35 @@
             let gradMin = Infinity;
             let gradMax = -Infinity;
 
-            // Only check gradients
+            // Only check gradients EXCEPT output layer gradients
             const gradients = state.gradients;
             for (let key in gradients) {
+                // Skip output layer gradients (they get their own scale)
+                if (key === 'output_weights' || key === 'output_biases') {
+                    continue;
+                }
                 const matrix = gradients[key];
                 const flat = matrix.flat(Infinity);
+                gradMin = Math.min(gradMin, ...flat);
+                gradMax = Math.max(gradMax, ...flat);
+            }
+
+            return { min: gradMin, max: gradMax };
+        }
+
+        function getOutputGradientMinMax(state) {
+            let gradMin = Infinity;
+            let gradMax = -Infinity;
+
+            // Only check output layer gradients
+            const gradients = state.gradients;
+            if ('output_weights' in gradients) {
+                const flat = gradients.output_weights.flat(Infinity);
+                gradMin = Math.min(gradMin, ...flat);
+                gradMax = Math.max(gradMax, ...flat);
+            }
+            if ('output_biases' in gradients) {
+                const flat = gradients.output_biases.flat(Infinity);
                 gradMin = Math.min(gradMin, ...flat);
                 gradMax = Math.max(gradMax, ...flat);
             }
@@ -1674,11 +2295,17 @@
             const outputMax = outputMinMax.max;
             const outputAbsMax = Math.max(Math.abs(outputMin), Math.abs(outputMax));
 
-            // Get gradient-specific scale
+            // Get gradient-specific scale (excluding output layer)
             const gradientMinMax = getGradientMinMax(state);
             const gradMin = gradientMinMax.min;
             const gradMax = gradientMinMax.max;
             const gradAbsMax = Math.max(Math.abs(gradMin), Math.abs(gradMax));
+
+            // Get output gradient-specific scale
+            const outputGradientMinMax = getOutputGradientMinMax(state);
+            const outGradMin = outputGradientMinMax.min;
+            const outGradMax = outputGradientMinMax.max;
+            const outGradAbsMax = Math.max(Math.abs(outGradMin), Math.abs(outGradMax));
 
             // Create zero-centered markers for global scale
             const negMax = -absMax;
@@ -1697,6 +2324,12 @@
             const gradNegHalf = -gradAbsMax / 2;
             const gradPosHalf = gradAbsMax / 2;
             const gradPosMax = gradAbsMax;
+
+            // Create zero-centered markers for output gradient scale
+            const outGradNegMax = -outGradAbsMax;
+            const outGradNegHalf = -outGradAbsMax / 2;
+            const outGradPosHalf = outGradAbsMax / 2;
+            const outGradPosMax = outGradAbsMax;
 
             // Create gradient for forward pass: red (negative) -> white (0) -> green (positive)
             const forwardGradient = 'linear-gradient(to right, ' +
@@ -1796,6 +2429,33 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="scale-section">
+                        <div class="scale-label">Output Layer Gradients Scale (Orange → White → Blue)</div>
+                        <div class="color-gradient" style="background: ${backwardGradient};"></div>
+                        <div class="scale-markers">
+                            <div class="scale-marker">
+                                <div class="marker-label">-Max</div>
+                                <div class="marker-value">${outGradNegMax.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">-Half</div>
+                                <div class="marker-value">${outGradNegHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">0</div>
+                                <div class="marker-value">0.000</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Half</div>
+                                <div class="marker-value">${outGradPosHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Max</div>
+                                <div class="marker-value">${outGradPosMax.toFixed(3)}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
 
@@ -1808,7 +2468,8 @@
                 loadModelState(),
                 loadDatasetInfo(),
                 loadTrainingStats(),
-                loadTrainerConfig()
+                loadTrainerConfig(),
+                loadRuns()
             ]);
         });
     </script>

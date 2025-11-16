@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify
+from training_run import TrainingRunManager
 
 app = Flask(__name__)
 
@@ -6,6 +7,7 @@ app = Flask(__name__)
 model = None
 dataset = None
 trainer = None
+run_manager = None  # Manages multiple training runs
 current_example = None  # Stores the latest training example with predictions
 training_stats = {
     'current_epoch': 0,
@@ -56,13 +58,18 @@ def get_current_example():
 
 @app.route('/api/run_single', methods=['POST'])
 def run_single():
-    """Run a single training step using the trainer."""
+    """Run a single forward/backward pass, optionally updating weights."""
     global current_example, training_stats
+    from flask import request
 
     if trainer is None:
         return jsonify({'error': 'Trainer not initialized'}), 400
 
     import numpy as np
+
+    # Check if we should update weights (default: False for visualization only)
+    data = request.get_json() or {}
+    update_weights = data.get('update_weights', False)
 
     try:
         # Get a single batch from dataset
@@ -78,8 +85,18 @@ def run_single():
         # Backward pass
         model.backward(loss_gradient)
 
-        # Update parameters
-        model.update_parameters(trainer.learning_rate)
+        # Update parameters only if requested
+        if update_weights:
+            model.update_parameters(trainer.learning_rate)
+            # Add to training stats only if training
+            training_stats['losses'].append(float(loss))
+            training_stats['total_samples_trained'] += 1
+
+            # Sync with active run
+            active_run = run_manager.get_active_run() if run_manager else None
+            if active_run:
+                active_run.record_single_step(loss)
+                active_run.update_current_weights(model)
 
         # Store current example information
         current_example = {
@@ -91,15 +108,14 @@ def run_single():
             'loss_type': trainer.loss_type
         }
 
-        # Add to training stats
-        training_stats['losses'].append(float(loss))
-
+        mode_msg = 'training step' if update_weights else 'visualization pass'
         return jsonify({
             'success': True,
-            'message': f'Single training step completed (loss: {trainer.loss_type})',
+            'message': f'Single {mode_msg} completed (loss: {trainer.loss_type})',
             'loss': float(loss),
             'loss_type': trainer.loss_type,
-            'output_shape': list(output.shape)
+            'output_shape': list(output.shape),
+            'weights_updated': update_weights
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -158,6 +174,13 @@ def train_epoch():
 
         training_stats['is_training'] = False
 
+        # Sync with active run if exists
+        active_run = run_manager.get_active_run() if run_manager else None
+        if active_run:
+            active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch)
+            active_run.update_current_weights(model)
+            active_run.is_training = False
+
         return jsonify({
             'success': True,
             'message': f'Epoch {training_stats["current_epoch"]} completed',
@@ -168,6 +191,10 @@ def train_epoch():
         })
     except Exception as e:
         training_stats['is_training'] = False
+        if run_manager:
+            active_run = run_manager.get_active_run()
+            if active_run:
+                active_run.is_training = False
         return jsonify({'error': str(e)}), 500
 
 
@@ -230,6 +257,9 @@ def train_n_epochs():
 
     try:
         training_stats['is_training'] = True
+        active_run = run_manager.get_active_run() if run_manager else None
+        if active_run:
+            active_run.is_training = True
 
         results = []
         for i in range(n_epochs):
@@ -244,6 +274,10 @@ def train_n_epochs():
             samples_in_epoch = len(dataset)
             training_stats['total_samples_trained'] += samples_in_epoch
 
+            # Sync with active run
+            if active_run:
+                active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch)
+
             results.append({
                 'epoch': training_stats['current_epoch'],
                 'loss': float(epoch_loss),
@@ -252,6 +286,11 @@ def train_n_epochs():
 
         training_stats['is_training'] = False
 
+        # Update weights snapshot after all epochs
+        if active_run:
+            active_run.update_current_weights(model)
+            active_run.is_training = False
+
         return jsonify({
             'success': True,
             'message': f'{n_epochs} epoch(s) completed',
@@ -259,6 +298,10 @@ def train_n_epochs():
         })
     except Exception as e:
         training_stats['is_training'] = False
+        if run_manager:
+            active_run = run_manager.get_active_run()
+            if active_run:
+                active_run.is_training = False
         return jsonify({'error': str(e)}), 500
 
 
@@ -299,6 +342,117 @@ def update_learning_rate():
     })
 
 
+@app.route('/api/update_batch_size', methods=['POST'])
+def update_batch_size():
+    """Update the trainer's batch size."""
+    from flask import request
+    from torch.utils.data import DataLoader
+
+    if trainer is None:
+        return jsonify({'error': 'Trainer not initialized'}), 400
+
+    data = request.get_json()
+    new_batch_size = data.get('batch_size')
+
+    if new_batch_size is None or new_batch_size < 1:
+        return jsonify({'error': 'Invalid batch size'}), 400
+
+    trainer.batch_size = int(new_batch_size)
+
+    # Recreate the DataLoader with new batch size
+    trainer.train_loader = DataLoader(
+        dataset,
+        batch_size=trainer.batch_size,
+        shuffle=True,
+        drop_last=False
+    )
+
+    return jsonify({
+        'success': True,
+        'message': f'Batch size updated to {new_batch_size}',
+        'batch_size': trainer.batch_size
+    })
+
+
+@app.route('/api/update_loss_type', methods=['POST'])
+def update_loss_type():
+    """Update the trainer's loss type."""
+    from flask import request
+
+    if trainer is None:
+        return jsonify({'error': 'Trainer not initialized'}), 400
+
+    data = request.get_json()
+    new_loss_type = data.get('loss_type')
+
+    if new_loss_type not in ['mse', 'cross_entropy']:
+        return jsonify({'error': 'Invalid loss type. Must be "mse" or "cross_entropy"'}), 400
+
+    trainer.loss_type = new_loss_type
+
+    return jsonify({
+        'success': True,
+        'message': f'Loss type updated to {new_loss_type}',
+        'loss_type': trainer.loss_type
+    })
+
+
+@app.route('/api/train_batch', methods=['POST'])
+def train_batch():
+    """Run a single batch forward/backward pass, optionally updating weights."""
+    global training_stats
+    from flask import request
+
+    if trainer is None:
+        return jsonify({'error': 'Trainer not initialized'}), 400
+
+    import numpy as np
+
+    # Check if we should update weights (default: False for visualization only)
+    data = request.get_json() or {}
+    update_weights = data.get('update_weights', False)
+
+    try:
+        # Get a batch from dataset
+        X_batch, y_batch = dataset.get_batch(batch_size=trainer.batch_size)
+
+        # Forward pass
+        predictions = model.forward(X_batch)
+
+        # Compute loss
+        loss = trainer.compute_loss(predictions, y_batch)
+
+        # Compute loss gradient
+        loss_gradient = trainer.compute_loss_gradient(predictions, y_batch)
+
+        # Backward pass
+        model.backward(loss_gradient)
+
+        # Update parameters only if requested
+        if update_weights:
+            model.update_parameters(trainer.learning_rate)
+            # Update stats only if training
+            training_stats['losses'].append(float(loss))
+            training_stats['total_samples_trained'] += trainer.batch_size
+
+            # Sync with active run
+            active_run = run_manager.get_active_run() if run_manager else None
+            if active_run:
+                active_run.record_batch(loss, trainer.batch_size)
+                active_run.update_current_weights(model)
+
+        mode_msg = 'training' if update_weights else 'visualization'
+        return jsonify({
+            'success': True,
+            'message': f'Batch {mode_msg} completed (batch_size={trainer.batch_size})',
+            'loss': float(loss),
+            'batch_size': trainer.batch_size,
+            'weights_updated': update_weights
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/test_master_sequences')
 def test_master_sequences():
     """Test model on master sequences."""
@@ -325,7 +479,7 @@ def test_master_sequences():
         # Generate all possible windows from this master sequence
         seq_results = []
 
-        for i in range(len(master_seq) - sequence_length):
+        for i in range(len(master_seq) - sequence_length + 1):
             # Extract input subsequence and target
             input_tokens = master_seq[i:i+sequence_length-1]
             target_token = master_seq[i+sequence_length-1]
@@ -374,6 +528,188 @@ def test_master_sequences():
     })
 
 
+# === Training Run Management API ===
+
+@app.route('/api/runs')
+def list_runs():
+    """Get list of all training runs."""
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    return jsonify({
+        'runs': run_manager.list_runs(),
+        'active_run_id': run_manager.active_run_id
+    })
+
+
+@app.route('/api/runs/create', methods=['POST'])
+def create_run():
+    """Create a new training run."""
+    global training_stats
+    from flask import request
+
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    data = request.get_json() or {}
+    name = data.get('name')
+
+    try:
+        # Create new run with current model and trainer state
+        run = run_manager.create_run(model, trainer, name=name)
+
+        # Automatically activate the new run
+        run_manager.set_active_run(run.run_id, model, trainer)
+
+        # Sync training_stats with the new run
+        training_stats['current_epoch'] = run.current_epoch
+        training_stats['losses'] = run.losses.copy()
+        training_stats['epoch_times'] = run.epoch_times.copy()
+        training_stats['total_samples_trained'] = run.total_samples_trained
+        training_stats['is_training'] = run.is_training
+
+        return jsonify({
+            'success': True,
+            'message': f'Created run {run.run_id}',
+            'run': run.get_summary()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/runs/<run_id>')
+def get_run(run_id):
+    """Get details of a specific run."""
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    run = run_manager.get_run(run_id)
+    if run is None:
+        return jsonify({'error': f'Run {run_id} not found'}), 404
+
+    return jsonify(run.get_stats())
+
+
+@app.route('/api/runs/<run_id>/activate', methods=['POST'])
+def activate_run(run_id):
+    """Activate a specific run, loading its weights and config."""
+    global training_stats
+
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    try:
+        # Save current run's state before switching
+        current_run = run_manager.get_active_run()
+        if current_run:
+            current_run.update_current_weights(model)
+
+        # Activate the new run
+        run = run_manager.set_active_run(run_id, model, trainer)
+
+        # Sync training_stats with the activated run
+        training_stats['current_epoch'] = run.current_epoch
+        training_stats['losses'] = run.losses.copy()
+        training_stats['epoch_times'] = run.epoch_times.copy()
+        training_stats['total_samples_trained'] = run.total_samples_trained
+        training_stats['is_training'] = run.is_training
+
+        return jsonify({
+            'success': True,
+            'message': f'Activated run {run_id}',
+            'run': run.get_summary()
+        })
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/runs/<run_id>/reset', methods=['POST'])
+def reset_run(run_id):
+    """Reset a run to its initial state."""
+    global training_stats
+
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    run = run_manager.get_run(run_id)
+    if run is None:
+        return jsonify({'error': f'Run {run_id} not found'}), 404
+
+    try:
+        # Reset the run's history
+        run.reset_history()
+
+        # If this is the active run, reload initial weights and sync stats
+        if run_id == run_manager.active_run_id:
+            run.load_weights_into_model(model, use_initial=True)
+            training_stats['current_epoch'] = 0
+            training_stats['losses'] = []
+            training_stats['epoch_times'] = []
+            training_stats['total_samples_trained'] = 0
+            training_stats['is_training'] = False
+
+        return jsonify({
+            'success': True,
+            'message': f'Reset run {run_id}',
+            'run': run.get_summary()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/runs/<run_id>', methods=['DELETE'])
+def delete_run(run_id):
+    """Delete a training run."""
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    if run_manager.delete_run(run_id):
+        return jsonify({
+            'success': True,
+            'message': f'Deleted run {run_id}'
+        })
+    else:
+        return jsonify({'error': f'Run {run_id} not found'}), 404
+
+
+@app.route('/api/runs/<run_id>/rename', methods=['POST'])
+def rename_run(run_id):
+    """Rename a training run."""
+    from flask import request
+
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    run = run_manager.get_run(run_id)
+    if run is None:
+        return jsonify({'error': f'Run {run_id} not found'}), 404
+
+    data = request.get_json() or {}
+    new_name = data.get('name')
+
+    if not new_name or not new_name.strip():
+        return jsonify({'error': 'Name cannot be empty'}), 400
+
+    run.name = new_name.strip()
+
+    return jsonify({
+        'success': True,
+        'message': f'Renamed run to {run.name}',
+        'run': run.get_summary()
+    })
+
+
+@app.route('/api/runs/losses')
+def get_all_run_losses():
+    """Get losses from all runs for multi-series plotting."""
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    return jsonify(run_manager.get_all_losses())
+
+
 def initialize_server(model_instance, trainer_instance, dataset_instance=None, host='127.0.0.1', port=7000, debug=True):
     """
     Initialize and run the Flask visualization server.
@@ -386,10 +722,11 @@ def initialize_server(model_instance, trainer_instance, dataset_instance=None, h
         port: Port number for the server
         debug: Enable debug mode
     """
-    global model, dataset, trainer, training_stats
+    global model, dataset, trainer, run_manager, training_stats
     model = model_instance
     dataset = dataset_instance
     trainer = trainer_instance
+    run_manager = TrainingRunManager()
 
     # Initialize training stats with trainer config
     training_stats['total_epochs'] = trainer.epochs

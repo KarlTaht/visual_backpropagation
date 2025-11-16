@@ -36,13 +36,49 @@ In this working directory, I'm building backpropagation from the ground up for l
   - Gradients
 - Global color normalization across all matrices
 - Color scale legend with min/p25/p50/p75/max markers
-- "Run Single" button to trigger forward/backward pass with random data
+- Training controls: Run Single Step, Run Batch, Run Full Epoch
+- Visualization mode toggle: "Visualize Only" (no weight updates) or "Train" (update weights)
+- Dynamic hyperparameter controls:
+  - Learning rate adjustment
+  - Batch size configuration
+  - Loss function selection (MSE or Cross-Entropy)
+- Multi-run loss chart with Plotly (compare training runs side-by-side)
+- Epoch times displayed in milliseconds
 
 **API Endpoints:**
 - `/api/state` - Get current model state (weights, activations, gradients)
-- `/api/run_single` - Run single forward/backward pass
+- `/api/run_single` - Run single forward/backward pass (with optional weight update)
+- `/api/train_batch` - Run a full batch of training
+- `/api/trainer_config` - Get/update trainer configuration
+- `/api/update_batch_size` - Update batch size
+- `/api/update_loss_type` - Switch between MSE and Cross-Entropy
+- `/api/runs` - List all training runs
+- `/api/runs/create` - Create new training run
+- `/api/runs/{id}/activate` - Switch to a different run
+- `/api/runs/{id}/reset` - Reset run to initial state
+- `/api/runs/{id}/rename` - Rename a run
+- `/api/runs/{id}` (DELETE) - Delete a run
+- `/api/runs/losses` - Get loss history for all runs (for multi-run chart)
 
-#### 3. Dataset ([dataset.py](dataset.py))
+#### 3. Training Run Management ([training_run.py](training_run.py))
+- `TrainingRun` class encapsulates:
+  - Run metadata (ID, name, creation time)
+  - Training configuration (learning rate, batch size, loss type)
+  - Weight snapshots (initial and current state)
+  - Training history (losses, epoch times, sample counts)
+  - Serialization to/from dictionary for persistence
+- `TrainingRunManager` class manages:
+  - Multiple concurrent training runs
+  - Active run switching with automatic weight loading
+  - Run lifecycle (create, activate, reset, delete, rename)
+  - Cross-run loss comparison for visualization
+- Enables:
+  - Experimenting with different hyperparameters
+  - Comparing loss curves across configurations
+  - Resetting runs to initial state
+  - Preserving training history
+
+#### 4. Dataset ([dataset.py](dataset.py))
 - Abstract `Dataset` base class for extensibility
 - `SequenceDataset` implementation for sequence learning tasks
 - Features:
@@ -100,24 +136,18 @@ Three ways to configure sequence generation:
 - Task: Next-token prediction
 - Master sequences: 3 sequences with random lengths between 8 and 12
 
-#### 4. Main Script ([main.py](main.py))
+#### 5. Main Script ([main.py](main.py))
 - Orchestrates dataset, model, trainer, and visualizer
 - Automatically matches model dimensions to dataset
 - Test forward/backward pass before starting server
 - Clean startup output with progress indicators
 
-### 🚧 In Progress
-
-#### Trainer ([trainer.py](trainer.py))
-- Skeleton structure created with comprehensive method signatures
-- Not yet implemented (all methods are `pass` statements)
-- Planned features:
-  - Main training loop (train, train_epoch, train_batch)
-  - Loss functions (MSE and cross-entropy)
-  - Loss gradient computation
-  - Evaluation on validation data
-  - Utilities (batching, shuffling)
-  - Callbacks and progress logging
+#### 6. Trainer ([trainer.py](trainer.py))
+- Training loop with configurable hyperparameters
+- Loss functions: MSE and Cross-Entropy
+- Loss gradient computation
+- Training statistics tracking
+- Uses PyTorch DataLoader for batching (gradient computation remains manual NumPy)
 
 ## Architecture Overview
 
@@ -136,13 +166,19 @@ Three ways to configure sequence generation:
           │    - Backward pass
           │    - Parameter updates
           │
-          ├──> trainer.py (Trainer) [NOT IMPLEMENTED]
+          ├──> trainer.py (Trainer)
           │    - Training loops
           │    - Loss computation
+          │
+          ├──> training_run.py (TrainingRunManager)
+          │    - Manages multiple training runs
+          │    - Weight snapshots and history
           │
           └──> visualizer.py (Flask Server)
                - Web UI for visualization
                - Real-time heatmaps
+               - Training run management
+               - Multi-run comparison charts
 ```
 
 ## File Structure
@@ -151,11 +187,13 @@ Three ways to configure sequence generation:
 backprop/
 ├── model.py           # Neural network implementation
 ├── dataset.py         # Dataset generation and batching
-├── trainer.py         # Training loop (skeleton)
-├── visualizer.py      # Flask server
+├── trainer.py         # Training loop with loss functions
+├── training_run.py    # Training run management system
+├── visualizer.py      # Flask server with run management
 ├── templates/
 │   └── index.html     # Web visualization UI
 ├── main.py            # Main orchestration script
+├── tests/             # Test suite
 └── CLAUDE.md          # This file
 ```
 
@@ -176,10 +214,11 @@ Then visit http://127.0.0.1:7000 in your browser to see the visualization.
 
 ## Next Steps
 
-1. **Implement Trainer methods** - Complete the training loop, loss functions, and evaluation
-2. **Training integration** - Connect trainer with dataset and model for end-to-end training
-3. **Test on actual learning** - Train the network on the sequence prediction task and observe convergence
-4. **Add more visualizations** - Loss curves, accuracy metrics, prediction outputs
+1. **Persist training runs** - Save/load runs to disk for session persistence
+2. **Add accuracy metrics** - Track prediction accuracy alongside loss
+3. **Gradient analysis** - Add gradient magnitude/flow visualizations
+4. **Model checkpointing** - Save best model weights during training
+5. **Early stopping** - Implement automatic training termination based on loss plateau
 
 ## Technical Details
 
