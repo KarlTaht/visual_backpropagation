@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 3em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: #f0f4f8;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-label {
+            font-size: 0.875em;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        #model-info {
+            margin-top: 20px;
+        }
+
+        /* Network Visualization Grid */
+        .network-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .column-header {
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.2em;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            color: #2d3748;
+        }
+
+        .forward-column {
+            border-left: 4px solid #48bb78;
+        }
+
+        .backward-column {
+            border-left: 4px solid #f56565;
+        }
+
+        .layer-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .layer-cell {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .forward-cell {
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+            border: 2px solid #48bb78;
+        }
+
+        .backward-cell {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            border: 2px solid #f56565;
+        }
+
+        .layer-name {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .layer-dims {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .layer-type {
+            font-size: 0.8em;
+            color: #4a5568;
+            margin-top: 5px;
+        }
+
+        /* Matrix Heatmap Styles */
+        .matrix-container {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .matrix-label {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+            text-align: left;
+        }
+
+        .matrix-grid {
+            display: grid;
+            gap: 1px;
+            background: #cbd5e0;
+            border: 1px solid #a0aec0;
+            border-radius: 2px;
+            overflow: hidden;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .matrix-cell {
+            aspect-ratio: 1;
+            min-width: 8px;
+            min-height: 8px;
+            max-width: 10px;
+            max-height: 10px;
+        }
+
+        .weight-bias-container {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin: 10px 0;
+        }
+
+        .weight-matrix {
+            width: 100%;
+        }
+
+        .bias-matrix {
+            width: 100%;
+            height: 20px;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: #cbd5e0;
+            margin: 8px 0;
+        }
+
+        /* Color Scale Legend */
+        .color-scale-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .scale-section {
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border: 2px solid #cbd5e0;
+        }
+
+        .scale-label {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+
+        .color-gradient {
+            height: 30px;
+            border-radius: 4px;
+            border: 1px solid #a0aec0;
+            position: relative;
+        }
+
+        .scale-markers {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.7em;
+            color: #4a5568;
+        }
+
+        .scale-marker {
+            text-align: center;
+            flex: 1;
+        }
+
+        .marker-label {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .marker-value {
+            font-family: monospace;
+        }
+
+        /* Input/Output Display Styles */
+        .io-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border: 2px solid #cbd5e0;
+        }
+
+        .io-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .io-section {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .io-section h4 {
+            margin-bottom: 15px;
+            color: #2d3748;
+            font-size: 1.1em;
+        }
+
+        .sequence-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.3em;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 4px;
+            text-align: center;
+            margin: 8px 0;
+            letter-spacing: 2px;
+        }
+
+        .token {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 0 2px;
+            background: #667eea;
+            color: white;
+            border-radius: 3px;
+        }
+
+        .token.target {
+            background: #48bb78;
+        }
+
+        .token.predicted {
+            background: #f56565;
+        }
+
+        .vector-display {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 4px;
+            margin: 8px 0;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .vector-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid #cbd5e0;
+        }
+
+        .vector-row:last-child {
+            border-bottom: none;
+        }
+
+        .vector-label {
+            font-weight: 600;
+            color: #4a5568;
+            min-width: 100px;
+        }
+
+        .vector-value {
+            color: #2d3748;
+            text-align: right;
+        }
+
+        .loss-display {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .loss-label {
+            font-size: 0.9em;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .loss-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #1a202c;
+            font-family: monospace;
+        }
+
+        /* Training Statistics Styles */
+        .training-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            font-family: monospace;
+        }
+
+        .loss-history {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .loss-history-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2d3748;
+        }
+
+        .loss-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+
+        .loss-epoch {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .loss-number {
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ title }}</h1>
+            <p class="subtitle">Real-time Neural Network Visualization</p>
+        </header>
+
+        <div class="content-card">
+            <h2>Training Progress</h2>
+
+            <!-- Training Controls -->
+            <div style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <!-- Epoch Training Control -->
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 0.9em;">Train N Epochs:</label>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="number" id="epoch-count-input" value="1" min="1" max="100"
+                                   style="flex: 1; padding: 8px; background: #1a1a1a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px;">
+                            <button onclick="trainNEpochs()" style="padding: 8px 16px;">Go!</button>
+                        </div>
+                    </div>
+
+                    <!-- Learning Rate Control -->
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 0.9em;">Learning Rate:</label>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <input type="number" id="learning-rate-input" step="0.0001" min="0.0001" max="1"
+                                   style="flex: 1; padding: 8px; background: #1a1a1a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px;">
+                            <button onclick="updateLearningRate()" style="padding: 8px 16px;">Update</button>
+                        </div>
+                        <div id="current-lr-display" style="font-size: 0.85em; color: #9ca3af; margin-top: 3px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="training-stats">
+                <p>Loading training statistics...</p>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="runEpoch()">Run Single Epoch</button>
+                <button onclick="runSingleStep()">Run Single Step</button>
+                <button onclick="resetTraining()">Reset Training</button>
+                <button onclick="resetModel()" style="background: #dc2626; border-color: #dc2626;">Reset Model</button>
+                <button onclick="loadTrainingStats()">Refresh Stats</button>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="status">
+                <div class="status-indicator"></div>
+                <span><strong>Server Status:</strong> Connected</span>
+            </div>
+
+            <h2>Model Architecture</h2>
+            <div id="model-info">
+                <p>Loading model information...</p>
+            </div>
+        </div>
+        <div class="content-card">
+            <h2>Training Data</h2>
+            <div id="dataset-info">
+                <p>Loading dataset information...</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Master Sequence Testing</h2>
+            <p style="color: #9ca3af; margin-bottom: 15px;">Test the model's performance on the master sequences used to generate training data.</p>
+
+            <div style="margin-bottom: 15px;">
+                <button onclick="testMasterSequences()">Test Master Sequences</button>
+            </div>
+
+            <div id="master-sequence-results">
+                <p style="color: #9ca3af;">Click "Test Master Sequences" to evaluate model performance.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Network Visualization</h2>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                <button onclick="runSingleStep()">Run Single Step</button>
+                <button onclick="runEpoch()">Run Full Epoch</button>
+                <button onclick="loadModelState()">Refresh Model State</button>
+            </div>
+
+            <!-- Column Headers -->
+            <div class="network-grid" style="margin-top: 20px;">
+                <div class="column-header forward-column">Forward Pass →</div>
+                <div class="column-header backward-column">← Backward Pass</div>
+            </div>
+
+            <!-- Input/Output Display -->
+            <div class="io-container" id="io-display" style="display: none;">
+                <h3 style="margin-bottom: 20px; color: #2d3748;">Current Example</h3>
+                <div class="io-grid">
+                    <!-- Forward Pass Side -->
+                    <div class="io-section">
+                        <h4>Forward Pass - Sequence View</h4>
+                        <div id="forward-io">
+                            <p style="color: #718096;">Run a forward pass to see data</p>
+                        </div>
+                    </div>
+
+                    <!-- Backward Pass Side -->
+                    <div class="io-section">
+                        <h4>Backward Pass - Vector View</h4>
+                        <div id="backward-io">
+                            <p style="color: #718096;">Run a forward pass to see data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Scale Legend -->
+            <div id="color-scale-legend"></div>
+
+            <!-- Network Layers -->
+            <div id="network-visualization">
+                <p style="color: #718096;">Loading network layers...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadModelState() {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById('model-info').innerHTML =
+                        `<p style="color: red;">Error: ${data.error}</p>`;
+                    return;
+                }
+
+                displayModelInfo(data);
+                displayNetworkVisualization(data);
+                displayColorScale(data);
+            } catch (error) {
+                document.getElementById('model-info').innerHTML =
+                    `<p style="color: red;">Failed to load model state: ${error.message}</p>`;
+            }
+        }
+
+        async function runSingleStep() {
+            try {
+                // Call the API to run a single training step
+                const response = await fetch('/api/run_single', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                // Show success message
+                console.log(result.message);
+
+                // Automatically refresh everything
+                await Promise.all([
+                    loadModelState(),
+                    loadCurrentExample(),
+                    loadTrainingStats()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to run single step: ${error.message}`);
+            }
+        }
+
+        async function runEpoch() {
+            try {
+                const response = await fetch('/api/train_epoch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(result.message);
+
+                // Refresh everything
+                await Promise.all([
+                    loadModelState(),
+                    loadTrainingStats()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to run epoch: ${error.message}`);
+            }
+        }
+
+        async function resetTraining() {
+            if (!confirm('Reset all training progress?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reset_training', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(result.message);
+
+                // Refresh stats
+                await loadTrainingStats();
+
+            } catch (error) {
+                alert(`Failed to reset training: ${error.message}`);
+            }
+        }
+
+        async function resetModel() {
+            if (!confirm('Reset model weights and all training progress? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reset_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(result.message);
+
+                // Refresh everything
+                await Promise.all([
+                    loadModelState(),
+                    loadTrainingStats()
+                ]);
+
+            } catch (error) {
+                alert(`Failed to reset model: ${error.message}`);
+            }
+        }
+
+        async function trainNEpochs() {
+            const input = document.getElementById('epoch-count-input');
+            const nEpochs = parseInt(input.value);
+
+            if (!nEpochs || nEpochs < 1) {
+                alert('Please enter a valid number of epochs (1 or more)');
+                return;
+            }
+
+            try {
+                // Train epochs sequentially, updating the chart after each one
+                for (let i = 0; i < nEpochs; i++) {
+                    // Train one epoch
+                    const response = await fetch('/api/train_epoch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        alert(`Error on epoch ${i + 1}: ${result.error}`);
+                        return;
+                    }
+
+                    console.log(`Completed epoch ${i + 1}/${nEpochs} - Loss: ${result.loss.toFixed(6)}`);
+
+                    // Update the chart after each epoch (don't wait for model state)
+                    await loadTrainingStats();
+                }
+
+                // After all epochs complete, refresh model state
+                await loadModelState();
+
+                console.log(`Training complete! Trained ${nEpochs} epoch(s)`);
+
+            } catch (error) {
+                alert(`Failed to train epochs: ${error.message}`);
+            }
+        }
+
+        async function updateLearningRate() {
+            const input = document.getElementById('learning-rate-input');
+            const newLR = parseFloat(input.value);
+
+            if (!newLR || newLR <= 0) {
+                alert('Please enter a valid learning rate (greater than 0)');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/update_learning_rate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ learning_rate: newLR })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                console.log(`Learning rate updated to ${newLR}`);
+                alert(`Learning rate updated to ${newLR}`);
+
+                // Reload trainer config to update display
+                await loadTrainerConfig();
+
+            } catch (error) {
+                alert(`Failed to update learning rate: ${error.message}`);
+            }
+        }
+
+        async function loadTrainerConfig() {
+            try {
+                const response = await fetch('/api/trainer_config');
+                const config = await response.json();
+
+                if (config.error) {
+                    console.error('Error loading trainer config:', config.error);
+                    return;
+                }
+
+                // Populate learning rate input
+                document.getElementById('learning-rate-input').value = config.learning_rate;
+                document.getElementById('current-lr-display').textContent =
+                    `Current: ${config.learning_rate}`;
+
+            } catch (error) {
+                console.error('Failed to load trainer config:', error);
+            }
+        }
+
+        async function testMasterSequences() {
+            try {
+                const response = await fetch('/api/test_master_sequences');
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+
+                displayMasterSequenceResults(result);
+
+            } catch (error) {
+                alert(`Failed to test master sequences: ${error.message}`);
+            }
+        }
+
+        function displayMasterSequenceResults(result) {
+            const container = document.getElementById('master-sequence-results');
+
+            let html = `
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="margin: 0 0 10px 0; color: #fff;">Overall Performance</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div class="stat-box">
+                            <div class="stat-label">Accuracy</div>
+                            <div class="stat-value">${(result.accuracy * 100).toFixed(1)}%</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Correct</div>
+                            <div class="stat-value">${result.total_correct} / ${result.total_predictions}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Display each master sequence
+            result.master_sequences.forEach((seq, idx) => {
+                const seqAccuracy = seq.predictions.filter(p => p.correct).length / seq.predictions.length;
+
+                html += `
+                    <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #8b5cf6;">
+                            Master Sequence ${idx + 1}: "${seq.master_sequence}"
+                            <span style="color: #9ca3af; font-size: 0.9em; font-weight: normal;">
+                                (${(seqAccuracy * 100).toFixed(1)}% accuracy)
+                            </span>
+                        </h4>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid #444;">
+                                        <th style="padding: 8px; text-align: left; color: #9ca3af;">Input</th>
+                                        <th style="padding: 8px; text-align: left; color: #9ca3af;">Target</th>
+                                        <th style="padding: 8px; text-align: left; color: #9ca3af;">Predicted</th>
+                                        <th style="padding: 8px; text-align: left; color: #9ca3af;">Confidence</th>
+                                        <th style="padding: 8px; text-align: center; color: #9ca3af;">Result</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                seq.predictions.forEach(pred => {
+                    const resultIcon = pred.correct ? '✓' : '✗';
+                    const resultColor = pred.correct ? '#10b981' : '#ef4444';
+
+                    html += `
+                        <tr style="border-bottom: 1px solid #333;">
+                            <td style="padding: 8px; font-family: monospace; color: #e0e0e0;">${pred.input}</td>
+                            <td style="padding: 8px; font-family: monospace; color: #e0e0e0;">${pred.target}</td>
+                            <td style="padding: 8px; font-family: monospace; color: ${pred.correct ? '#10b981' : '#ef4444'};">${pred.predicted}</td>
+                            <td style="padding: 8px; color: #e0e0e0;">${(pred.confidence * 100).toFixed(1)}%</td>
+                            <td style="padding: 8px; text-align: center; color: ${resultColor}; font-weight: bold;">${resultIcon}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function loadTrainingStats() {
+            try {
+                const response = await fetch('/api/training_stats');
+                const data = await response.json();
+
+                displayTrainingStats(data);
+            } catch (error) {
+                console.error('Failed to load training stats:', error);
+                document.getElementById('training-stats').innerHTML =
+                    `<p style="color: red;">Failed to load training stats: ${error.message}</p>`;
+            }
+        }
+
+        function displayTrainingStats(stats) {
+            const currentLoss = stats.losses.length > 0 ?
+                stats.losses[stats.losses.length - 1].toFixed(6) :
+                'N/A';
+
+            const minLoss = stats.losses.length > 0 ?
+                Math.min(...stats.losses).toFixed(6) :
+                'N/A';
+
+            // Calculate average epoch time
+            const avgEpochTime = stats.epoch_times && stats.epoch_times.length > 0 ?
+                (stats.epoch_times.reduce((a, b) => a + b, 0) / stats.epoch_times.length).toFixed(2) :
+                'N/A';
+
+            // Get last epoch time
+            const lastEpochTime = stats.epoch_times && stats.epoch_times.length > 0 ?
+                stats.epoch_times[stats.epoch_times.length - 1].toFixed(2) :
+                'N/A';
+
+            let html = `
+                <div class="training-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Current Epoch</div>
+                        <div class="stat-value">${stats.current_epoch} / ${stats.total_epochs}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Current Loss</div>
+                        <div class="stat-value">${currentLoss}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Best Loss</div>
+                        <div class="stat-value">${minLoss}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Training Steps</div>
+                        <div class="stat-value">${stats.losses.length}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Samples / Epoch</div>
+                        <div class="stat-value">${stats.samples_per_epoch || 'N/A'}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total Samples</div>
+                        <div class="stat-value">${stats.total_samples_trained || 0}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Last Epoch Time</div>
+                        <div class="stat-value">${lastEpochTime}s</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Avg Epoch Time</div>
+                        <div class="stat-value">${avgEpochTime}s</div>
+                    </div>
+                </div>
+            `;
+
+            // Add Plotly chart container
+            html += '<div id="loss-chart" style="width: 100%; height: 400px; margin-top: 20px;"></div>';
+
+            // Add loss history
+            if (stats.losses.length > 0) {
+                html += '<div class="loss-history">';
+                html += '<div class="loss-history-title">Loss History (Last 20)</div>';
+
+                // Show last 20 losses in reverse order (most recent first)
+                const recentLosses = stats.losses.slice(-20).reverse();
+                for (let i = 0; i < recentLosses.length; i++) {
+                    const stepNum = stats.losses.length - i;
+                    html += `
+                        <div class="loss-item">
+                            <span class="loss-epoch">Step ${stepNum}:</span>
+                            <span class="loss-number">${recentLosses[i].toFixed(6)}</span>
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+            }
+
+            document.getElementById('training-stats').innerHTML = html;
+
+            // Update the Plotly chart
+            updateLossChart(stats);
+        }
+
+        function updateLossChart(stats) {
+            if (stats.losses.length === 0) {
+                return;
+            }
+
+            // Prepare data for Plotly
+            const steps = Array.from({length: stats.losses.length}, (_, i) => i + 1);
+            const losses = stats.losses;
+
+            const trace = {
+                x: steps,
+                y: losses,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Loss',
+                line: {
+                    color: 'rgb(138, 43, 226)',  // Purple to match theme
+                    width: 2
+                },
+                marker: {
+                    color: 'rgb(138, 43, 226)',
+                    size: 4
+                }
+            };
+
+            const layout = {
+                title: {
+                    text: 'Loss Over Training Steps',
+                    font: {
+                        size: 16,
+                        color: '#e0e0e0'
+                    }
+                },
+                xaxis: {
+                    title: 'Training Step',
+                    gridcolor: '#444',
+                    color: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Loss',
+                    gridcolor: '#444',
+                    color: '#e0e0e0'
+                },
+                plot_bgcolor: '#2a2a2a',
+                paper_bgcolor: '#1a1a1a',
+                font: {
+                    color: '#e0e0e0'
+                },
+                margin: {
+                    l: 60,
+                    r: 30,
+                    t: 50,
+                    b: 50
+                },
+                hovermode: 'closest'
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false
+            };
+
+            // Use Plotly.react for efficient updates (creates chart if doesn't exist)
+            Plotly.react('loss-chart', [trace], layout, config);
+        }
+
+        async function loadCurrentExample() {
+            try {
+                const response = await fetch('/api/current_example');
+                const data = await response.json();
+
+                if (data.error) {
+                    // Hide the display if no example is available
+                    document.getElementById('io-display').style.display = 'none';
+                    return;
+                }
+
+                // Show the display
+                document.getElementById('io-display').style.display = 'block';
+
+                // Load dataset info to decode sequences
+                const datasetResponse = await fetch('/api/dataset');
+                const datasetData = await datasetResponse.json();
+
+                displayCurrentExample(data, datasetData);
+            } catch (error) {
+                console.error('Failed to load current example:', error);
+            }
+        }
+
+        function displayCurrentExample(example, datasetInfo) {
+            // Forward pass display
+            displayForwardIO(example, datasetInfo);
+
+            // Backward pass display
+            displayBackwardIO(example, datasetInfo);
+        }
+
+        function displayForwardIO(example, datasetInfo) {
+            const container = document.getElementById('forward-io');
+
+            if (!example.has_dataset) {
+                container.innerHTML = '<p style="color: #718096;">Using random data (no dataset)</p>';
+                return;
+            }
+
+            // Decode input sequence
+            const input = example.input[0]; // Remove batch dimension
+            const vocab = datasetInfo.vocabulary;
+            const vocabSize = datasetInfo.vocab_size;
+            const seqLength = datasetInfo.sequence_length;
+
+            let html = '<div>';
+
+            // Display input sequence
+            html += '<div style="margin-bottom: 15px;">';
+            html += '<div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">Input Sequence:</div>';
+            html += '<div class="sequence-display">';
+
+            // Decode each token in the input
+            const inputLength = seqLength - 1; // next_token task uses seq_len - 1 as input
+            for (let i = 0; i < inputLength; i++) {
+                const tokenVec = input.slice(i * vocabSize, (i + 1) * vocabSize);
+                const tokenIdx = tokenVec.indexOf(Math.max(...tokenVec));
+                const token = vocab[tokenIdx];
+                html += `<span class="token">${token}</span>`;
+            }
+            html += '</div></div>';
+
+            // Display target vs prediction
+            html += '<div>';
+            html += '<div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">Target vs Prediction:</div>';
+
+            // Decode target
+            const target = example.target[0];
+            const targetIdx = target.indexOf(Math.max(...target));
+            const targetToken = vocab[targetIdx];
+
+            // Decode prediction (find argmax)
+            const prediction = example.prediction[0];
+            const predIdx = prediction.indexOf(Math.max(...prediction));
+            const predToken = vocab[predIdx];
+
+            html += '<div class="sequence-display">';
+            html += `<span class="token target">${targetToken}</span>`;
+            html += '<span style="margin: 0 10px; color: #718096;">vs</span>';
+            html += `<span class="token predicted">${predToken}</span>`;
+            html += '</div>';
+
+            // Show if correct or not
+            const isCorrect = targetToken === predToken;
+            const statusColor = isCorrect ? '#48bb78' : '#f56565';
+            const statusText = isCorrect ? 'CORRECT ✓' : 'INCORRECT ✗';
+            html += `<div style="text-align: center; margin-top: 10px; font-weight: 600; color: ${statusColor};">${statusText}</div>`;
+
+            html += '</div></div>';
+
+            container.innerHTML = html;
+        }
+
+        function displayBackwardIO(example, datasetInfo) {
+            const container = document.getElementById('backward-io');
+
+            let html = '<div>';
+
+            // Display target vector
+            const target = example.target[0];
+            const prediction = example.prediction[0];
+            const vocab = datasetInfo.vocabulary;
+
+            html += '<div style="margin-bottom: 15px;">';
+            html += '<div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">Target Vector:</div>';
+            html += '<div class="vector-display">';
+            for (let i = 0; i < vocab.length; i++) {
+                html += `<div class="vector-row">`;
+                html += `<span class="vector-label">${vocab[i]}:</span>`;
+                html += `<span class="vector-value">${target[i].toFixed(4)}</span>`;
+                html += `</div>`;
+            }
+            html += '</div></div>';
+
+            // Display prediction vector
+            html += '<div style="margin-bottom: 15px;">';
+            html += '<div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">Prediction Vector:</div>';
+            html += '<div class="vector-display">';
+            for (let i = 0; i < vocab.length; i++) {
+                html += `<div class="vector-row">`;
+                html += `<span class="vector-label">${vocab[i]}:</span>`;
+                html += `<span class="vector-value">${prediction[i].toFixed(4)}</span>`;
+                html += `</div>`;
+            }
+            html += '</div></div>';
+
+            // Display loss
+            html += '<div class="loss-display">';
+            html += '<div class="loss-label">Mean Squared Error Loss</div>';
+            html += `<div class="loss-value">${example.loss.toFixed(6)}</div>`;
+            html += '</div>';
+
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        async function loadDatasetInfo() {
+            try {
+                const response = await fetch('/api/dataset');
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById('dataset-info').innerHTML =
+                        `<p style="color: #718096;">Dataset information not available</p>`;
+                    return;
+                }
+
+                displayDatasetInfo(data);
+            } catch (error) {
+                document.getElementById('dataset-info').innerHTML =
+                    `<p style="color: red;">Failed to load dataset info: ${error.message}</p>`;
+            }
+        }
+
+        function displayDatasetInfo(data) {
+            let html = '<div class="info-grid">';
+
+            // Basic dataset info
+            html += `
+                <div class="info-item">
+                    <div class="info-label">Total Samples</div>
+                    <div class="info-value">${data.num_samples}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Training Sequence Length</div>
+                    <div class="info-value">${data.sequence_length}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Vocabulary Size</div>
+                    <div class="info-value">${data.vocab_size}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Task Type</div>
+                    <div class="info-value" style="font-size: 1em;">${data.task_type}</div>
+                </div>
+            `;
+            html += '</div>';
+
+            // Master sequences section
+            if (data.master_sequences) {
+                const ms = data.master_sequences;
+                html += `
+                    <div style="margin-top: 25px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Master Sequences</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Number of Master Sequences</div>
+                                <div class="info-value">${ms.num_sequences}</div>
+                            </div>
+                `;
+
+                // Display each master sequence
+                for (let i = 0; i < ms.sequences.length; i++) {
+                    const seq = ms.sequences[i].join('');
+                    const length = ms.sequence_lengths[i];
+                    html += `
+                        <div class="info-item">
+                            <div class="info-label">Master Sequence ${i + 1}</div>
+                            <div class="info-value" style="font-size: 1.1em; font-family: monospace;">'${seq}'</div>
+                            <div style="font-size: 0.9em; color: #718096; margin-top: 5px;">Length: ${length}</div>
+                        </div>
+                    `;
+                }
+
+                html += '</div></div>';
+            }
+
+            document.getElementById('dataset-info').innerHTML = html;
+        }
+
+        function displayModelInfo(state) {
+            const weights = state.weights;
+            const activations = state.activations;
+            const gradients = state.gradients;
+
+            const html = `
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Activations Stored</div>
+                        <div class="info-value">${Object.keys(activations).length}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Gradients Computed</div>
+                        <div class="info-value">${Object.keys(gradients).length}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Weight Matrices</div>
+                        <div class="info-value">${Object.keys(weights).length}</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('model-info').innerHTML = html;
+        }
+
+        function displayNetworkVisualization(state) {
+            const weights = state.weights;
+            const activations = state.activations;
+            const gradients = state.gradients;
+
+            // Extract dimensions from weight matrices
+            const inputDim = weights.input_weights[0].length;
+            const hiddenDim = weights.hidden_weights[0][0].length;
+            const numHiddenLayers = weights.hidden_weights.length;
+            const outputDim = weights.output_weights[0].length;
+
+            // Get global min/max for color scaling
+            const minMax = getGlobalMinMax(state);
+            // Get separate min/max for output activations
+            const outputMinMax = getOutputMinMax(state);
+            // Get separate min/max for gradients
+            const gradientMinMax = getGradientMinMax(state);
+
+            let html = '';
+
+            // Input Layer
+            html += createLayerRow(
+                'Input Layer',
+                `(batch, ${inputDim})`,
+                'input_weights' in gradients ? `(${inputDim}, ${hiddenDim})` : 'No gradients yet',
+                'input_weights' in gradients
+            );
+
+            // Hidden Layers
+            for (let i = 0; i < numHiddenLayers; i++) {
+                const gradKey = `hidden_${i}_weights`;
+                html += createLayerRow(
+                    `Hidden Layer ${i + 1}`,
+                    `(batch, ${hiddenDim})`,
+                    gradKey in gradients ? `(${hiddenDim}, ${hiddenDim})` : 'No gradients yet',
+                    gradKey in gradients
+                );
+            }
+
+            // Output Layer
+            html += createLayerRow(
+                'Output Layer',
+                `(batch, ${outputDim})`,
+                'output_weights' in gradients ? `(${hiddenDim}, ${outputDim})` : 'No gradients yet',
+                'output_weights' in gradients
+            );
+
+            document.getElementById('network-visualization').innerHTML = html;
+
+            // Now populate each cell with heatmaps
+            populateLayerCell('Input Layer', weights, activations, gradients, minMax, null, gradientMinMax,
+                'input', 'input_weights', 'input_biases', 'hidden_0_pre', 'hidden_0');
+
+            for (let i = 0; i < numHiddenLayers; i++) {
+                // For hidden layers, we need to extract from the 3D arrays
+                const hiddenWeights = weights.hidden_weights[i];
+                const hiddenBiases = weights.hidden_biases[i];
+
+                populateLayerCellWithArrays(`Hidden Layer ${i + 1}`, hiddenWeights, hiddenBiases,
+                    activations, gradients, minMax, null, gradientMinMax,
+                    `hidden_${i}`, `hidden_${i}_weights`, `hidden_${i}_biases`,
+                    `hidden_${i+1}_pre`, `hidden_${i+1}`);
+            }
+
+            // Use outputMinMax for the output layer activations
+            populateLayerCell('Output Layer', weights, activations, gradients, minMax, outputMinMax, gradientMinMax,
+                `hidden_${numHiddenLayers}`, 'output_weights', 'output_biases',
+                'output', 'output');
+        }
+
+        function populateLayerCell(layerName, weights, activations, gradients, minMax, outputMinMax, gradientMinMax,
+                                    inputKey, weightKey, biasKey, preActivKey, postActivKey) {
+            const layerWeights = weights[weightKey];
+            const layerBiases = weights[biasKey];
+            populateLayerCellWithArrays(layerName, layerWeights, layerBiases,
+                activations, gradients, minMax, outputMinMax, gradientMinMax, inputKey, weightKey, biasKey, preActivKey, postActivKey);
+        }
+
+        function populateLayerCellWithArrays(layerName, layerWeights, layerBiases,
+                                              activations, gradients, minMax, outputMinMax, gradientMinMax,
+                                              inputKey, weightGradKey, biasGradKey, preActivKey, postActivKey) {
+            const forwardId = `forward-${layerName.replace(/\s/g, '-')}`;
+            const backwardId = `backward-${layerName.replace(/\s/g, '-')}`;
+
+            // Forward Pass Cell
+            const forwardContainer = document.getElementById(forwardId);
+            if (forwardContainer && inputKey in activations) {
+                let forwardHTML = `<div class="layer-name">${layerName}</div>`;
+
+                // Top: Layer Input (averaged across batch)
+                const inputActivation = averageAlongAxis0(activations[inputKey]);
+                forwardHTML += renderHeatmap(inputActivation, forwardId, 'Input', minMax, true);
+
+                // Middle: Weights and Biases
+                forwardHTML += '<div class="weight-bias-container">';
+                forwardHTML += '<div class="weight-matrix">';
+                forwardHTML += renderHeatmap(layerWeights, forwardId, 'Weights', minMax, true);
+                forwardHTML += '</div>';
+                forwardHTML += '<div class="bias-matrix">';
+                const biasAsRow = [layerBiases]; // Convert to row matrix [1 x n]
+                forwardHTML += renderHeatmap(biasAsRow, forwardId, 'Bias', minMax, true);
+                forwardHTML += '</div>';
+                forwardHTML += '</div>';
+
+                // Bottom: Pre-activation and Post-activation
+                // Use outputMinMax if provided (for output layer only)
+                const activScale = outputMinMax || minMax;
+
+                if (preActivKey in activations) {
+                    const preActiv = averageAlongAxis0(activations[preActivKey]);
+                    forwardHTML += renderHeatmap(preActiv, forwardId, 'Pre-Activation', activScale, true);
+                }
+
+                if (postActivKey in activations && postActivKey !== 'output') {
+                    const postActiv = averageAlongAxis0(activations[postActivKey]);
+                    forwardHTML += renderHeatmap(postActiv, forwardId, 'Post-Activation (GELU)', minMax, true);
+                } else if (postActivKey === 'output' && postActivKey in activations) {
+                    const output = averageAlongAxis0(activations[postActivKey]);
+                    forwardHTML += renderHeatmap(output, forwardId, 'Output (Logits)', activScale, true);
+                }
+
+                forwardContainer.innerHTML = forwardHTML;
+            }
+
+            // Backward Pass Cell
+            const backwardContainer = document.getElementById(backwardId);
+            if (backwardContainer && weightGradKey in gradients) {
+                let backwardHTML = `<div class="layer-name">${layerName}</div>`;
+
+                // Top: Gradient flowing into this layer (if available)
+                // This would be the gradient w.r.t. the input to this layer
+                backwardHTML += '<div class="matrix-label">Gradient Flow In</div>';
+
+                // Middle: Weight gradients and Bias gradients (use gradient-specific scale)
+                backwardHTML += '<div class="weight-bias-container">';
+                backwardHTML += '<div class="weight-matrix">';
+                backwardHTML += renderHeatmap(gradients[weightGradKey], backwardId, 'Weight Gradients', gradientMinMax, false);
+                backwardHTML += '</div>';
+                backwardHTML += '<div class="bias-matrix">';
+                const biasGradAsRow = [gradients[biasGradKey]]; // Convert to row matrix [1 x n]
+                backwardHTML += renderHeatmap(biasGradAsRow, backwardId, 'Bias Gradients', gradientMinMax, false);
+                backwardHTML += '</div>';
+                backwardHTML += '</div>';
+
+                backwardContainer.innerHTML = backwardHTML;
+            }
+        }
+
+        function createLayerRow(layerName, forwardDims, backwardDims, hasGradients) {
+            return `
+                <div class="layer-row">
+                    <div class="layer-cell forward-cell" id="forward-${layerName.replace(/\s/g, '-')}">
+                        <div class="layer-name">${layerName}</div>
+                        <div class="layer-dims">${forwardDims}</div>
+                        <div class="layer-type">Forward Pass</div>
+                    </div>
+                    <div class="layer-cell backward-cell ${hasGradients ? '' : 'disabled'}" id="backward-${layerName.replace(/\s/g, '-')}">
+                        <div class="layer-name">${layerName}</div>
+                        <div class="layer-dims">${backwardDims}</div>
+                        <div class="layer-type">Backward Pass</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getGlobalMinMax(state) {
+            let globalMin = Infinity;
+            let globalMax = -Infinity;
+
+            // Check all weights
+            const weights = state.weights;
+            for (let key in weights) {
+                const matrix = weights[key];
+                const flat = matrix.flat(Infinity);
+                globalMin = Math.min(globalMin, ...flat);
+                globalMax = Math.max(globalMax, ...flat);
+            }
+
+            // Check all activations EXCEPT output layer activations
+            const activations = state.activations;
+            for (let key in activations) {
+                // Skip output-layer activations (they get their own scale)
+                if (key === 'output' || key.includes('_pre') && key.startsWith('hidden_')) {
+                    // Only skip the final output layer pre-activation
+                    const numHiddenLayers = state.weights.hidden_weights.length;
+                    const finalPreKey = `hidden_${numHiddenLayers}_pre`;
+                    if (key === finalPreKey) {
+                        continue;
+                    }
+                }
+
+                const matrix = activations[key];
+                const flat = matrix.flat(Infinity);
+                globalMin = Math.min(globalMin, ...flat);
+                globalMax = Math.max(globalMax, ...flat);
+            }
+
+            // Note: Gradients now have their own separate scale
+
+            return { min: globalMin, max: globalMax };
+        }
+
+        function getGradientMinMax(state) {
+            let gradMin = Infinity;
+            let gradMax = -Infinity;
+
+            // Only check gradients
+            const gradients = state.gradients;
+            for (let key in gradients) {
+                const matrix = gradients[key];
+                const flat = matrix.flat(Infinity);
+                gradMin = Math.min(gradMin, ...flat);
+                gradMax = Math.max(gradMax, ...flat);
+            }
+
+            return { min: gradMin, max: gradMax };
+        }
+
+        function getOutputMinMax(state) {
+            let outputMin = Infinity;
+            let outputMax = -Infinity;
+
+            const activations = state.activations;
+
+            // Only check output layer activations (output and its pre-activation)
+            if ('output' in activations) {
+                const flat = activations.output.flat(Infinity);
+                outputMin = Math.min(outputMin, ...flat);
+                outputMax = Math.max(outputMax, ...flat);
+            }
+
+            // Also include the final pre-activation before output
+            const numHiddenLayers = state.weights.hidden_weights.length;
+            const finalPreKey = `hidden_${numHiddenLayers}_pre`;
+            if (finalPreKey in activations) {
+                const flat = activations[finalPreKey].flat(Infinity);
+                outputMin = Math.min(outputMin, ...flat);
+                outputMax = Math.max(outputMax, ...flat);
+            }
+
+            return { min: outputMin, max: outputMax };
+        }
+
+        function valueToColor(value, min, max, isForward) {
+            // Use zero-centered color scheme
+            const absMax = Math.max(Math.abs(min), Math.abs(max));
+
+            if (isForward) {
+                // Forward pass: negative (red) -> 0 (white) -> positive (green)
+                if (value < 0) {
+                    // Negative: red to white
+                    const intensity = Math.abs(value) / absMax;
+                    const r = 255;
+                    const g = Math.floor(255 - intensity * 255);
+                    const b = Math.floor(255 - intensity * 255);
+                    return `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    // Positive: white to green
+                    const intensity = value / absMax;
+                    const r = Math.floor(255 - intensity * 255);
+                    const g = 255;
+                    const b = Math.floor(255 - intensity * 255);
+                    return `rgb(${r}, ${g}, ${b})`;
+                }
+            } else {
+                // Backward pass: negative (burnt orange) -> 0 (white) -> positive (blue)
+                if (value < 0) {
+                    // Negative: burnt orange to white
+                    const intensity = Math.abs(value) / absMax;
+                    const r = Math.floor(255 - intensity * 50);  // 255 -> 205
+                    const g = Math.floor(255 - intensity * 115); // 255 -> 140
+                    const b = Math.floor(255 - intensity * 215); // 255 -> 40
+                    return `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    // Positive: white to blue
+                    const intensity = value / absMax;
+                    const r = Math.floor(255 - intensity * 185); // 255 -> 70
+                    const g = Math.floor(255 - intensity * 125); // 255 -> 130
+                    const b = 255;                                // stays at 255
+                    return `rgb(${r}, ${g}, ${b})`;
+                }
+            }
+        }
+
+        function renderHeatmap(matrix, containerId, label, minMax, isForward) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+
+            let html = `
+                <div class="matrix-container">
+                    <div class="matrix-label">${label} [${rows}×${cols}]</div>
+                    <div class="matrix-grid" style="grid-template-columns: repeat(${cols}, auto);">
+            `;
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const value = matrix[i][j];
+                    const color = valueToColor(value, minMax.min, minMax.max, isForward);
+                    html += `<div class="matrix-cell" style="background-color: ${color};" title="${value.toFixed(4)}"></div>`;
+                }
+            }
+
+            html += `</div></div>`;
+            return html;
+        }
+
+        function averageAlongAxis0(matrix) {
+            // Average across batch dimension (axis 0)
+            if (matrix.length === 0) return [];
+
+            const batchSize = matrix.length;
+            const cols = matrix[0].length;
+            const result = new Array(cols).fill(0);
+
+            for (let i = 0; i < batchSize; i++) {
+                for (let j = 0; j < cols; j++) {
+                    result[j] += matrix[i][j];
+                }
+            }
+
+            for (let j = 0; j < cols; j++) {
+                result[j] /= batchSize;
+            }
+
+            return [result]; // Return as 1×cols matrix
+        }
+
+        function displayColorScale(state) {
+            const minMax = getGlobalMinMax(state);
+            const min = minMax.min;
+            const max = minMax.max;
+            const absMax = Math.max(Math.abs(min), Math.abs(max));
+
+            // Get output-specific scale
+            const outputMinMax = getOutputMinMax(state);
+            const outputMin = outputMinMax.min;
+            const outputMax = outputMinMax.max;
+            const outputAbsMax = Math.max(Math.abs(outputMin), Math.abs(outputMax));
+
+            // Get gradient-specific scale
+            const gradientMinMax = getGradientMinMax(state);
+            const gradMin = gradientMinMax.min;
+            const gradMax = gradientMinMax.max;
+            const gradAbsMax = Math.max(Math.abs(gradMin), Math.abs(gradMax));
+
+            // Create zero-centered markers for global scale
+            const negMax = -absMax;
+            const negHalf = -absMax / 2;
+            const posHalf = absMax / 2;
+            const posMax = absMax;
+
+            // Create zero-centered markers for output scale
+            const outputNegMax = -outputAbsMax;
+            const outputNegHalf = -outputAbsMax / 2;
+            const outputPosHalf = outputAbsMax / 2;
+            const outputPosMax = outputAbsMax;
+
+            // Create zero-centered markers for gradient scale
+            const gradNegMax = -gradAbsMax;
+            const gradNegHalf = -gradAbsMax / 2;
+            const gradPosHalf = gradAbsMax / 2;
+            const gradPosMax = gradAbsMax;
+
+            // Create gradient for forward pass: red (negative) -> white (0) -> green (positive)
+            const forwardGradient = 'linear-gradient(to right, ' +
+                'rgb(255, 0, 0), ' +     // -max (red)
+                'rgb(255, 127, 127), ' + // -half
+                'rgb(255, 255, 255), ' + // 0 (white)
+                'rgb(127, 255, 127), ' + // +half
+                'rgb(0, 255, 0))';       // +max (green)
+
+            // Create gradient for backward pass: burnt orange (negative) -> white (0) -> blue (positive)
+            const backwardGradient = 'linear-gradient(to right, ' +
+                'rgb(205, 140, 40), ' +  // -max (burnt orange)
+                'rgb(230, 197, 147), ' + // -half
+                'rgb(255, 255, 255), ' + // 0 (white)
+                'rgb(165, 190, 255), ' + // +half
+                'rgb(70, 130, 255))';    // +max (blue)
+
+            const html = `
+                <div class="color-scale-container" style="grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div class="scale-section">
+                        <div class="scale-label">Forward Pass Scale (Red → White → Green)</div>
+                        <div class="color-gradient" style="background: ${forwardGradient};"></div>
+                        <div class="scale-markers">
+                            <div class="scale-marker">
+                                <div class="marker-label">-Max</div>
+                                <div class="marker-value">${negMax.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">-Half</div>
+                                <div class="marker-value">${negHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">0</div>
+                                <div class="marker-value">0.000</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Half</div>
+                                <div class="marker-value">${posHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Max</div>
+                                <div class="marker-value">${posMax.toFixed(3)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scale-section">
+                        <div class="scale-label">Gradients Scale (Orange → White → Blue)</div>
+                        <div class="color-gradient" style="background: ${backwardGradient};"></div>
+                        <div class="scale-markers">
+                            <div class="scale-marker">
+                                <div class="marker-label">-Max</div>
+                                <div class="marker-value">${gradNegMax.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">-Half</div>
+                                <div class="marker-value">${gradNegHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">0</div>
+                                <div class="marker-value">0.000</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Half</div>
+                                <div class="marker-value">${gradPosHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Max</div>
+                                <div class="marker-value">${gradPosMax.toFixed(3)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scale-section">
+                        <div class="scale-label">Output Logits Scale (Red → White → Green)</div>
+                        <div class="color-gradient" style="background: ${forwardGradient};"></div>
+                        <div class="scale-markers">
+                            <div class="scale-marker">
+                                <div class="marker-label">-Max</div>
+                                <div class="marker-value">${outputNegMax.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">-Half</div>
+                                <div class="marker-value">${outputNegHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">0</div>
+                                <div class="marker-value">0.000</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Half</div>
+                                <div class="marker-value">${outputPosHalf.toFixed(3)}</div>
+                            </div>
+                            <div class="scale-marker">
+                                <div class="marker-label">+Max</div>
+                                <div class="marker-value">${outputPosMax.toFixed(3)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('color-scale-legend').innerHTML = html;
+        }
+
+        // Load state, dataset info, and training stats on page load
+        window.addEventListener('load', async () => {
+            await Promise.all([
+                loadModelState(),
+                loadDatasetInfo(),
+                loadTrainingStats(),
+                loadTrainerConfig()
+            ]);
+        });
+    </script>
+</body>
+</html>
