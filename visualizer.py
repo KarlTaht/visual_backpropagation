@@ -710,6 +710,119 @@ def get_all_run_losses():
     return jsonify(run_manager.get_all_losses())
 
 
+# === Distribution Analysis API ===
+
+# Track gradient norms over time
+gradient_norm_history = {}
+
+@app.route('/api/distribution_stats')
+def get_distribution_stats():
+    """Get distribution statistics for weights and gradients."""
+    if model is None:
+        return jsonify({'error': 'Model not initialized'}), 400
+
+    import numpy as np
+
+    state = model.get_state()
+    weights = state['weights']
+    gradients = state['gradients']
+
+    # Compute weight statistics
+    weight_stats = {}
+
+    # Input layer
+    input_w = np.array(weights['input_weights'])
+    weight_stats['Input Layer'] = {
+        'mean': float(np.mean(input_w)),
+        'std': float(np.std(input_w)),
+        'min': float(np.min(input_w)),
+        'max': float(np.max(input_w)),
+        'values': input_w.flatten().tolist()[:1000]  # Limit to 1000 values for histogram
+    }
+
+    # Hidden layers
+    for i, hidden_w in enumerate(weights['hidden_weights']):
+        hidden_w = np.array(hidden_w)
+        weight_stats[f'Hidden Layer {i+1}'] = {
+            'mean': float(np.mean(hidden_w)),
+            'std': float(np.std(hidden_w)),
+            'min': float(np.min(hidden_w)),
+            'max': float(np.max(hidden_w)),
+            'values': hidden_w.flatten().tolist()[:1000]
+        }
+
+    # Output layer
+    output_w = np.array(weights['output_weights'])
+    weight_stats['Output Layer'] = {
+        'mean': float(np.mean(output_w)),
+        'std': float(np.std(output_w)),
+        'min': float(np.min(output_w)),
+        'max': float(np.max(output_w)),
+        'values': output_w.flatten().tolist()[:1000]
+    }
+
+    # Compute gradient statistics
+    gradient_stats = {}
+
+    if 'input_weights' in gradients:
+        input_g = np.array(gradients['input_weights'])
+        l2_norm = float(np.linalg.norm(input_g))
+        gradient_stats['Input Layer'] = {
+            'mean': float(np.mean(input_g)),
+            'std': float(np.std(input_g)),
+            'min': float(np.min(input_g)),
+            'max': float(np.max(input_g)),
+            'l2_norm': l2_norm,
+            'values': input_g.flatten().tolist()[:1000]
+        }
+        # Track norm history
+        if 'Input Layer' not in gradient_norm_history:
+            gradient_norm_history['Input Layer'] = []
+        gradient_norm_history['Input Layer'].append(l2_norm)
+
+    # Hidden layer gradients
+    for key in gradients:
+        if key.startswith('hidden_') and key.endswith('_weights'):
+            layer_idx = int(key.split('_')[1])
+            hidden_g = np.array(gradients[key])
+            l2_norm = float(np.linalg.norm(hidden_g))
+            layer_name = f'Hidden Layer {layer_idx + 1}'
+            gradient_stats[layer_name] = {
+                'mean': float(np.mean(hidden_g)),
+                'std': float(np.std(hidden_g)),
+                'min': float(np.min(hidden_g)),
+                'max': float(np.max(hidden_g)),
+                'l2_norm': l2_norm,
+                'values': hidden_g.flatten().tolist()[:1000]
+            }
+            # Track norm history
+            if layer_name not in gradient_norm_history:
+                gradient_norm_history[layer_name] = []
+            gradient_norm_history[layer_name].append(l2_norm)
+
+    if 'output_weights' in gradients:
+        output_g = np.array(gradients['output_weights'])
+        l2_norm = float(np.linalg.norm(output_g))
+        gradient_stats['Output Layer'] = {
+            'mean': float(np.mean(output_g)),
+            'std': float(np.std(output_g)),
+            'min': float(np.min(output_g)),
+            'max': float(np.max(output_g)),
+            'l2_norm': l2_norm,
+            'values': output_g.flatten().tolist()[:1000]
+        }
+        # Track norm history
+        if 'Output Layer' not in gradient_norm_history:
+            gradient_norm_history['Output Layer'] = []
+        gradient_norm_history['Output Layer'].append(l2_norm)
+
+    return jsonify({
+        'weights': weight_stats,
+        'gradients': gradient_stats,
+        'gradient_norms': gradient_norm_history
+    })
+
+
 def initialize_server(model_instance, trainer_instance, dataset_instance=None, host='127.0.0.1', port=7000, debug=True):
     """
     Initialize and run the Flask visualization server.
