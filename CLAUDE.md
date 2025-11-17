@@ -136,7 +136,8 @@ Three ways to configure sequence generation:
 - Task: Next-token prediction
 - Master sequences: 3 sequences with random lengths between 8 and 12
 
-#### 5. Main Script ([main.py](main.py))
+#### 5. Gradient Visualizer ([gradient_visualizer.py](gradient_visualizer.py))
+- Main entry point for the gradient visualization tool
 - Orchestrates dataset, model, trainer, and visualizer
 - Automatically matches model dimensions to dataset
 - Test forward/backward pass before starting server
@@ -153,7 +154,7 @@ Three ways to configure sequence generation:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    main.py                          │
+│              gradient_visualizer.py                 │
 │  Orchestrates all components and starts server      │
 └─────────────────────────────────────────────────────┘
           │
@@ -185,16 +186,27 @@ Three ways to configure sequence generation:
 
 ```
 backprop/
-├── model.py           # Neural network implementation
-├── dataset.py         # Dataset generation and batching
-├── trainer.py         # Training loop with loss functions
-├── training_run.py    # Training run management system
-├── visualizer.py      # Flask server with run management
+├── model.py               # Neural network implementation
+├── dataset.py             # Dataset generation and batching
+├── trainer.py             # Training loop with loss functions
+├── training_run.py        # Training run management system
+├── visualizer.py          # Flask server with run management
+├── gradient_visualizer.py # Main entry point (gradient visualization)
 ├── templates/
-│   └── index.html     # Web visualization UI
-├── main.py            # Main orchestration script
-├── tests/             # Test suite
-└── CLAUDE.md          # This file
+│   └── index.html         # Web visualization UI
+├── static/
+│   ├── css/
+│   │   └── main.css       # Extracted styles
+│   └── js/
+│       ├── api.js         # API communication
+│       ├── charts.js      # Plotly chart rendering
+│       ├── heatmaps.js    # Matrix visualization
+│       ├── controls.js    # Training controls
+│       ├── runs.js        # Run management
+│       ├── distributions.js # Distribution analysis
+│       └── main.js        # Entry point
+├── tests/                 # Test suite
+└── CLAUDE.md              # This file
 ```
 
 ## How to Run
@@ -204,10 +216,10 @@ First, activate the virtual environment:
 source ~/venvs/basic/bin/activate
 ```
 
-Then run the main script:
+Then run the gradient visualizer:
 ```bash
 cd backprop
-python main.py
+python gradient_visualizer.py
 ```
 
 Then visit http://127.0.0.1:7000 in your browser to see the visualization.
