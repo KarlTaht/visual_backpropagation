@@ -214,6 +214,7 @@ const Display = {
 
         // Load multi-run chart
         await this.loadMultiRunChart(stats);
+        await this.loadGradientNormsChart();
     },
 
     // Load multi-run chart
@@ -235,6 +236,21 @@ const Display = {
             if (currentStats && currentStats.losses.length > 0) {
                 Charts.updateSingleRunChart(currentStats);
             }
+        }
+    },
+
+    async loadGradientNormsChart() {
+        try {
+            const gradientNormsData = await API.getRunGradientNorms();
+
+            if (gradientNormsData.error) {
+                console.error('Error loading gradient norms:', gradientNormsData.error);
+                return;
+            }
+
+            Charts.updateGradientNormsChart(gradientNormsData);
+        } catch (error) {
+            console.error('Failed to load gradient norms chart:', error);
         }
     },
 

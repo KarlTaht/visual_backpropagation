@@ -147,6 +147,34 @@ class Model:
         self.gradients['input_weights'] = X.T @ dZ
         self.gradients['input_biases'] = np.sum(dZ, axis=0)
 
+    def compute_gradient_norms(self):
+        """
+        Compute L2 norms of gradients for each layer.
+
+        Returns:
+            Dictionary mapping layer names to L2 norms
+        """
+        norms = {}
+
+        # Input layer
+        if 'input_weights' in self.gradients:
+            input_grad = self.gradients['input_weights']
+            norms['Input Layer'] = float(np.linalg.norm(input_grad))
+
+        # Hidden layers
+        for i in range(self.num_hidden_layers):
+            grad_key = f'hidden_{i}_weights'
+            if grad_key in self.gradients:
+                hidden_grad = self.gradients[grad_key]
+                norms[f'Hidden Layer {i+1}'] = float(np.linalg.norm(hidden_grad))
+
+        # Output layer
+        if 'output_weights' in self.gradients:
+            output_grad = self.gradients['output_weights']
+            norms['Output Layer'] = float(np.linalg.norm(output_grad))
+
+        return norms
+
     # === Parameter Updates ===
     def update_parameters(self, learning_rate):
         """Update weights and biases using computed gradients."""

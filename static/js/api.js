@@ -151,6 +151,11 @@ const API = {
         return await response.json();
     },
 
+    async getRunGradientNorms() {
+        const response = await fetch('/api/runs/gradient_norms');
+        return await response.json();
+    },
+
     // Master sequence testing
     async testMasterSequences() {
         const response = await fetch('/api/test_master_sequences');

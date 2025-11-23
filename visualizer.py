@@ -85,6 +85,9 @@ def run_single():
         # Backward pass
         model.backward(loss_gradient)
 
+        # Compute gradient norms
+        gradient_norms = model.compute_gradient_norms()
+
         # Update parameters only if requested
         if update_weights:
             model.update_parameters(trainer.learning_rate)
@@ -95,7 +98,7 @@ def run_single():
             # Sync with active run
             active_run = run_manager.get_active_run() if run_manager else None
             if active_run:
-                active_run.record_single_step(loss)
+                active_run.record_single_step(loss, gradient_norms=gradient_norms)
                 active_run.update_current_weights(model)
 
         # Store current example information
@@ -157,7 +160,7 @@ def train_epoch():
         start_time = time.time()
 
         # Train for one epoch
-        epoch_loss = trainer.train_epoch()
+        epoch_loss, gradient_norms = trainer.train_epoch()
 
         # Calculate elapsed time
         elapsed_time = time.time() - start_time
@@ -177,7 +180,7 @@ def train_epoch():
         # Sync with active run if exists
         active_run = run_manager.get_active_run() if run_manager else None
         if active_run:
-            active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch)
+            active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch, gradient_norms=gradient_norms)
             active_run.update_current_weights(model)
             active_run.is_training = False
 
@@ -264,7 +267,7 @@ def train_n_epochs():
         results = []
         for i in range(n_epochs):
             start_time = time.time()
-            epoch_loss = trainer.train_epoch()
+            epoch_loss, gradient_norms = trainer.train_epoch()
             elapsed_time = time.time() - start_time
 
             training_stats['current_epoch'] += 1
@@ -276,7 +279,7 @@ def train_n_epochs():
 
             # Sync with active run
             if active_run:
-                active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch)
+                active_run.record_epoch(epoch_loss, elapsed_time, samples_in_epoch, gradient_norms=gradient_norms)
 
             results.append({
                 'epoch': training_stats['current_epoch'],
@@ -428,6 +431,9 @@ def train_batch():
         # Backward pass
         model.backward(loss_gradient)
 
+        # Compute gradient norms
+        gradient_norms = model.compute_gradient_norms()
+
         # Update parameters only if requested
         if update_weights:
             model.update_parameters(trainer.learning_rate)
@@ -438,7 +444,7 @@ def train_batch():
             # Sync with active run
             active_run = run_manager.get_active_run() if run_manager else None
             if active_run:
-                active_run.record_batch(loss, trainer.batch_size)
+                active_run.record_batch(loss, trainer.batch_size, gradient_norms=gradient_norms)
                 active_run.update_current_weights(model)
 
         mode_msg = 'training' if update_weights else 'visualization'
@@ -708,6 +714,15 @@ def get_all_run_losses():
         return jsonify({'error': 'Run manager not initialized'}), 400
 
     return jsonify(run_manager.get_all_losses())
+
+
+@app.route('/api/runs/gradient_norms')
+def get_all_run_gradient_norms():
+    """Get gradient norms from all runs for multi-series plotting."""
+    if run_manager is None:
+        return jsonify({'error': 'Run manager not initialized'}), 400
+
+    return jsonify(run_manager.get_all_gradient_norms())
 
 
 # === Distribution Analysis API ===

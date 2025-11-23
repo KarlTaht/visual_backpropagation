@@ -74,7 +74,8 @@ const Controls = {
 
             await Promise.all([
                 Display.loadModelState(),
-                Display.loadTrainingStats()
+                Display.loadTrainingStats(),
+                Distributions.loadStats()
             ]);
 
         } catch (error) {
@@ -107,8 +108,9 @@ const Controls = {
                 await Display.loadTrainingStats();
             }
 
-            // Refresh model state after all epochs
+            // Refresh model state and distributions after all epochs
             await Display.loadModelState();
+            await Distributions.loadStats();
 
             console.log(`Training complete! Trained ${nEpochs} epoch(s)`);
 

@@ -118,11 +118,18 @@ const Runs = {
             console.log(`Created run: ${result.run.name}`);
             nameInput.value = '';
 
-            await Promise.all([
-                this.loadRuns(),
-                Display.loadTrainingStats(),
-                Display.loadTrainerConfig()
-            ]);
+            // Refresh all components
+            await this.loadRuns();
+            await Display.loadTrainingStats();
+            await Display.loadTrainerConfig();
+
+            // Explicitly refresh charts after run creation
+            const runLosses = await API.getRunLosses();
+            const gradientNorms = await API.getRunGradientNorms();
+            const trainingStats = await API.getTrainingStats();
+
+            Charts.updateMultiRunChart(runLosses, trainingStats);
+            Charts.updateGradientNormsChart(gradientNorms);
 
         } catch (error) {
             alert(`Failed to create run: ${error.message}`);
@@ -157,12 +164,18 @@ const Runs = {
 
             console.log(`Activated run: ${result.run.name}`);
 
-            await Promise.all([
-                this.loadRuns(),
-                Display.loadTrainingStats(),
-                Display.loadTrainerConfig(),
-                Display.loadModelState()
-            ]);
+            // Refresh all components
+            await this.loadRuns();
+            await Display.loadTrainingStats();
+            await Display.loadTrainerConfig();
+            await Display.loadModelState();
+
+            // Explicitly refresh charts after activation
+            const runLosses = await API.getRunLosses();
+            const gradientNorms = await API.getRunGradientNorms();
+
+            Charts.updateMultiRunChart(runLosses, null);
+            Charts.updateGradientNormsChart(gradientNorms);
 
         } catch (error) {
             alert(`Failed to activate run: ${error.message}`);
@@ -185,11 +198,17 @@ const Runs = {
 
             console.log(`Reset run: ${result.run.name}`);
 
-            await Promise.all([
-                this.loadRuns(),
-                Display.loadTrainingStats(),
-                Display.loadModelState()
-            ]);
+            // Refresh all components
+            await this.loadRuns();
+            await Display.loadTrainingStats();
+            await Display.loadModelState();
+
+            // Explicitly refresh charts after reset
+            const runLosses = await API.getRunLosses();
+            const gradientNorms = await API.getRunGradientNorms();
+
+            Charts.updateMultiRunChart(runLosses, null);
+            Charts.updateGradientNormsChart(gradientNorms);
 
         } catch (error) {
             alert(`Failed to reset run: ${error.message}`);
@@ -237,7 +256,18 @@ const Runs = {
             }
 
             console.log(`Deleted run: ${runId}`);
+
+            // Refresh all components
             await this.loadRuns();
+            await Display.loadTrainingStats();
+
+            // Explicitly refresh charts after deletion
+            const runLosses = await API.getRunLosses();
+            const gradientNorms = await API.getRunGradientNorms();
+            const trainingStats = await API.getTrainingStats();
+
+            Charts.updateMultiRunChart(runLosses, trainingStats);
+            Charts.updateGradientNormsChart(gradientNorms);
 
         } catch (error) {
             alert(`Failed to delete run: ${error.message}`);

@@ -78,10 +78,11 @@ class Trainer:
         Train for one epoch using PyTorch DataLoader.
 
         Returns:
-            Average loss for the epoch
+            tuple: (average_loss, final_gradient_norms) where final_gradient_norms is from the last batch
         """
         epoch_loss = 0.0
         num_batches = 0
+        final_gradient_norms = None
 
         # DataLoader automatically handles shuffling and batching
         for X_batch, y_batch in self.train_loader:
@@ -90,13 +91,15 @@ class Trainer:
             y_batch = y_batch.numpy()
 
             # Train on this batch
-            batch_loss = self.train_batch(X_batch, y_batch)
+            batch_loss, gradient_norms = self.train_batch(X_batch, y_batch)
 
             epoch_loss += batch_loss
             num_batches += 1
+            final_gradient_norms = gradient_norms  # Keep last batch's gradient norms
 
-        # Return average loss across all batches
-        return epoch_loss / num_batches if num_batches > 0 else 0.0
+        # Return average loss and gradient norms from final batch
+        avg_loss = epoch_loss / num_batches if num_batches > 0 else 0.0
+        return avg_loss, final_gradient_norms
 
 
     def train_batch(self, X_batch, y_batch):
@@ -108,7 +111,7 @@ class Trainer:
             y_batch: Batch target data (batch_size, output_dim)
 
         Returns:
-            Loss for this batch
+            tuple: (loss, gradient_norms) where gradient_norms is a dict of L2 norms per layer
         """
         # Forward pass
         predictions = self.model.forward(X_batch)
@@ -122,10 +125,13 @@ class Trainer:
         # Backward pass
         self.model.backward(loss_gradient)
 
+        # Compute gradient norms before updating
+        gradient_norms = self.model.compute_gradient_norms()
+
         # Update parameters
         self.model.update_parameters(self.learning_rate)
 
-        return loss
+        return loss, gradient_norms
 
 
     # === Loss Functions ===

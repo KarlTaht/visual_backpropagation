@@ -42,6 +42,13 @@ class TrainingRun:
         self.current_epoch = 0
         self.total_samples_trained = 0
 
+        # Gradient norm tracking (per layer)
+        self.gradient_norms = {
+            'Input Layer': [],
+            'Output Layer': []
+        }
+        # Hidden layers will be added dynamically based on model architecture
+
         # Run state
         self.is_active = False
         self.is_training = False
@@ -92,7 +99,7 @@ class TrainingRun:
         model.output_layer_weights = weights['output_weights'].copy()
         model.output_layer_biases = weights['output_biases'].copy()
 
-    def record_epoch(self, loss, elapsed_time, samples_in_epoch):
+    def record_epoch(self, loss, elapsed_time, samples_in_epoch, gradient_norms=None):
         """
         Record the completion of an epoch.
 
@@ -100,32 +107,57 @@ class TrainingRun:
             loss: Average loss for the epoch
             elapsed_time: Time taken for the epoch in seconds
             samples_in_epoch: Number of samples trained in the epoch
+            gradient_norms: Optional dict of gradient norms per layer
         """
         self.losses.append(float(loss))
         self.epoch_times.append(elapsed_time)
         self.current_epoch += 1
         self.total_samples_trained += samples_in_epoch
 
-    def record_batch(self, loss, batch_size):
+        if gradient_norms:
+            self._record_gradient_norms(gradient_norms)
+
+    def record_batch(self, loss, batch_size, gradient_norms=None):
         """
         Record the completion of a single batch.
 
         Args:
             loss: Loss for the batch
             batch_size: Number of samples in the batch
+            gradient_norms: Optional dict of gradient norms per layer
         """
         self.losses.append(float(loss))
         self.total_samples_trained += batch_size
 
-    def record_single_step(self, loss):
+        if gradient_norms:
+            self._record_gradient_norms(gradient_norms)
+
+    def record_single_step(self, loss, gradient_norms=None):
         """
         Record the completion of a single training step.
 
         Args:
             loss: Loss for the single sample
+            gradient_norms: Optional dict of gradient norms per layer
         """
         self.losses.append(float(loss))
         self.total_samples_trained += 1
+
+        if gradient_norms:
+            self._record_gradient_norms(gradient_norms)
+
+    def _record_gradient_norms(self, gradient_norms):
+        """
+        Record gradient norms for each layer.
+
+        Args:
+            gradient_norms: Dict mapping layer names to L2 norms
+        """
+        for layer_name, norm in gradient_norms.items():
+            # Initialize layer if not seen before (for hidden layers)
+            if layer_name not in self.gradient_norms:
+                self.gradient_norms[layer_name] = []
+            self.gradient_norms[layer_name].append(float(norm))
 
     def reset_history(self):
         """Reset training history while keeping configuration and initial weights."""
@@ -133,6 +165,13 @@ class TrainingRun:
         self.epoch_times = []
         self.current_epoch = 0
         self.total_samples_trained = 0
+
+        # Reset gradient norms
+        self.gradient_norms = {
+            'Input Layer': [],
+            'Output Layer': []
+        }
+
         # Reset current weights to initial state
         if self.initial_weights:
             self.current_weights = deepcopy(self.initial_weights)
@@ -209,6 +248,7 @@ class TrainingRun:
             'initial_weights': convert_numpy(self.initial_weights),
             'current_weights': convert_numpy(self.current_weights),
             'losses': self.losses,
+            'gradient_norms': self.gradient_norms,
             'epoch_times': self.epoch_times,
             'current_epoch': self.current_epoch,
             'total_samples_trained': self.total_samples_trained,
@@ -251,6 +291,7 @@ class TrainingRun:
         run.created_at = data.get('created_at', time.time())
         run.current_weights = convert_to_numpy(data.get('current_weights'))
         run.losses = data.get('losses', [])
+        run.gradient_norms = data.get('gradient_norms', {'Input Layer': [], 'Output Layer': []})
         run.epoch_times = data.get('epoch_times', [])
         run.current_epoch = data.get('current_epoch', 0)
         run.total_samples_trained = data.get('total_samples_trained', 0)
@@ -364,6 +405,17 @@ class TrainingRunManager:
             run_id: {
                 'name': run.name,
                 'losses': run.losses,
+                'config': run.config
+            }
+            for run_id, run in self.runs.items()
+        }
+
+    def get_all_gradient_norms(self):
+        """Get gradient norms from all runs for multi-series plotting."""
+        return {
+            run_id: {
+                'name': run.name,
+                'gradient_norms': run.gradient_norms,
                 'config': run.config
             }
             for run_id, run in self.runs.items()

@@ -208,6 +208,63 @@ const Charts = {
         const config = { responsive: true, displayModeBar: false };
 
         Plotly.react(containerId, [trace1, trace2], layout, config);
+    },
+
+    // Update multi-run gradient norms chart
+    updateGradientNormsChart(gradientNormsData) {
+        const allTraces = [];
+        let colorIndex = 0;
+
+        console.log('Gradient norms data:', gradientNormsData);
+
+        // For each run
+        for (const [runId, runData] of Object.entries(gradientNormsData)) {
+            if (!runData || !runData.gradient_norms) continue;
+
+            const gradientNorms = runData.gradient_norms;
+
+            // For each layer in this run
+            for (const [layerName, norms] of Object.entries(gradientNorms)) {
+                if (!norms || norms.length === 0) continue;
+
+                const steps = Array.from({length: norms.length}, (_, i) => i + 1);
+                const color = this.colors[colorIndex % this.colors.length];
+
+                // Create trace name with run and layer info
+                const traceName = Object.keys(gradientNormsData).length > 1
+                    ? `${runData.name} - ${layerName}`
+                    : layerName;
+
+                allTraces.push({
+                    x: steps,
+                    y: norms,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: traceName,
+                    line: { color: color, width: 2 }
+                });
+
+                colorIndex++;
+            }
+        }
+
+        if (allTraces.length === 0) {
+            document.getElementById('gradient-norms-chart').innerHTML =
+                '<div style="text-align: center; color: #9ca3af; padding: 30px;">No gradient norm data yet. Train the model to see gradient flow over time.</div>';
+            return;
+        }
+
+        const layout = {
+            ...this.getBaseLayout('Gradient Norms Over Training Steps'),
+            xaxis: { title: 'Training Step', gridcolor: '#444', color: '#e0e0e0' },
+            yaxis: { title: 'L2 Norm', gridcolor: '#444', color: '#e0e0e0', type: 'log' },
+            showlegend: true,
+            legend: { bgcolor: 'rgba(0,0,0,0.5)', font: { color: '#e0e0e0' } }
+        };
+
+        const config = { responsive: true, displayModeBar: true, displaylogo: false };
+
+        Plotly.react('gradient-norms-chart', allTraces, layout, config);
     }
 };
 
